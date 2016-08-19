@@ -29,6 +29,8 @@ public:
     front_conn(boost::shared_ptr<ip::tcp::socket> p_sock, http_server& server);
 
     void stop() override;
+    void do_read();
+    void do_write();
     virtual void read_handler(const boost::system::error_code &ec, std::size_t bytes_transferred) override; 
     virtual void write_handler(const boost::system::error_code &ec, std::size_t bytes_transferred) override; 
 
@@ -39,6 +41,8 @@ public:
 private:
     http_parser parser_;
     http_server& server_;
+
+    boost::asio::io_service::strand strand_;
 };
 
 }

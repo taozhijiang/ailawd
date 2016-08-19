@@ -16,6 +16,7 @@ namespace http_stat = http_proto::status;
 
 front_conn::front_conn(boost::shared_ptr<ip::tcp::socket> p_sock,
                        http_server& server):
+    strand_(server.io_service_),
     connection(p_sock),
     parser_(),
     server_(server)
@@ -28,6 +29,41 @@ void front_conn::stop()
 {
     //server_.set_session_id(shared_from_this(), (int64_t)-1);
     set_stats(conn_pending);
+}
+
+// 改写基类的读写
+void front_conn::do_read()
+{
+    if (get_stats() != conn_working)
+    {
+        BOOST_LOG_T(error) << "SOCK STATUS: " << get_stats();
+        return;
+    }
+
+    BOOST_LOG_T(info) << "strand read... ";
+    p_sock_->async_read_some(buffer(*p_buffer_),
+                             strand_.wrap(
+                                boost::bind(&front_conn::read_handler,
+                                  this,
+                                  boost::asio::placeholders::error,
+                                  boost::asio::placeholders::bytes_transferred)));
+}
+
+void front_conn::do_write()
+{
+    if (get_stats() != conn_working)
+    {
+        BOOST_LOG_T(error) << "SOCK STATUS: " << get_stats();
+        return;
+    }
+
+    BOOST_LOG_T(info) << "strand write... ";
+    p_sock_->async_write_some(buffer(*p_write_),
+                              strand_.wrap(
+                                boost::bind(&front_conn::write_handler,
+                                  this,
+                                  boost::asio::placeholders::error,
+                                  boost::asio::placeholders::bytes_transferred)));
 }
 
 

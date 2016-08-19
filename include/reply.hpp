@@ -35,7 +35,7 @@ public:
 
     static string reply_generate(const string& content, const string& stat_str)
     {
-        std::vector<header> headers(5);
+        std::vector<header> headers(6);
 
         // reply fixed header
         headers[0].name = "Server";
@@ -48,6 +48,8 @@ public:
         headers[3].value = "text/html";
         headers[4].name = "Connection";
         headers[4].value = "keep-alive";
+        headers[5].name = "Access-Control-Allow-Origin";
+        headers[5].value = "*";
 
         string str = stat_str;
         for (int i=0; i< headers.size(); ++i)

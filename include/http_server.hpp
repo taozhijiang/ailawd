@@ -32,7 +32,7 @@ public:
     /// Construct the server to listen on the specified TCP address and port, and
     /// serve up files from the given directory.
     explicit http_server(const std::string& address, unsigned short port,
-                    const std::string& doc_root);
+                    const std::string& doc_root, size_t c_cz);
 
     /// Run the server's io_service loop.
     void run();
@@ -47,10 +47,14 @@ public:
     static boost::mutex conn_notify_mutex;
 
 private:
+    friend class front_conn;
+
     io_service io_service_;
 
     ip::tcp::endpoint ep_;
     ip::tcp::acceptor acceptor_;
+
+    size_t concurr_sz_;
 
     void do_accept();
     void accept_handler(const boost::system::error_code& ec, socket_ptr ptr);

@@ -6,6 +6,7 @@
 #include "reply.hpp"
 
 #include <boost/format.hpp>
+#include <boost/thread.hpp>
 
 namespace airobot {
 
@@ -19,11 +20,12 @@ boost::condition_variable_any http_server::conn_notify;
 boost::mutex http_server::conn_notify_mutex;
 
 http_server::http_server(const std::string& address, unsigned short port,
-                    const std::string& doc_root) :
+                    const std::string& doc_root, size_t c_cz) :
     io_service_(),
     ep_(ip::tcp::endpoint(ip::address::from_string(address), port)),
     acceptor_(io_service_, ep_),
-    front_conns_()
+    front_conns_(),
+    concurr_sz_(c_cz)
 {
     acceptor_.set_option(ip::tcp::acceptor::reuse_address(true));
     acceptor_.listen();
@@ -48,7 +50,24 @@ void http_server::run()
     reply::fixed_reply_error = 
         reply::reply_generate(http_proto::content_error, http_stats::internal_server_error); 
 
-    io_service_.run();
+
+    // Create a pool of threads to run all of the io_services.
+    std::vector<boost::shared_ptr<boost::thread> > threads_pool;
+    for (std::size_t i = 0; i < concurr_sz_; ++i) 
+    {
+        boost::shared_ptr<boost::thread> c_thread (
+            new boost::thread(
+                boost::bind(&boost::asio::io_service::run, &io_service_)));
+
+        threads_pool.push_back(c_thread);
+    }
+
+    // Wait for all threads in the pool to exit.
+    for (std::size_t i = 0; i < concurr_sz_; ++i)
+        threads_pool[i]->join();
+
+    // single-threaded
+    //io_service_.run();
 }
 
 void http_server::do_accept()
