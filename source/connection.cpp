@@ -21,6 +21,11 @@ connection::connection(boost::shared_ptr<ip::tcp::socket> p_sock):
 
 void connection::start()
 {
+    /**
+     * 这里需要注意的是，如果do_read()不是虚函数，而派生类只是简单的覆盖， 
+     * 那么在accept　handler中调用的new_c->start()会导致这里会调用基类 
+     * 版本的do_read 
+     */
     set_stats(conn_working);
     do_read();
 }

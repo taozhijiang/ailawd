@@ -7,6 +7,7 @@
 using namespace boost::posix_time;
 using namespace boost::gregorian;
 
+#include <boost/thread.hpp>
 #include <boost/algorithm/string.hpp>
 
 namespace airobot {
@@ -31,6 +32,7 @@ void front_conn::stop()
     set_stats(conn_pending);
 }
 
+
 // 改写基类的读写
 void front_conn::do_read()
 {
@@ -40,13 +42,14 @@ void front_conn::do_read()
         return;
     }
 
-    BOOST_LOG_T(info) << "strand read... ";
+    BOOST_LOG_T(info) << "strand read... in " << boost::this_thread::get_id(); 
     p_sock_->async_read_some(buffer(*p_buffer_),
                              strand_.wrap(
                                 boost::bind(&front_conn::read_handler,
                                   this,
                                   boost::asio::placeholders::error,
                                   boost::asio::placeholders::bytes_transferred)));
+    return;
 }
 
 void front_conn::do_write()
@@ -57,13 +60,14 @@ void front_conn::do_write()
         return;
     }
 
-    BOOST_LOG_T(info) << "strand write... ";
+    BOOST_LOG_T(info) << "strand write... in " << boost::this_thread::get_id(); 
     p_sock_->async_write_some(buffer(*p_write_),
                               strand_.wrap(
                                 boost::bind(&front_conn::write_handler,
                                   this,
                                   boost::asio::placeholders::error,
                                   boost::asio::placeholders::bytes_transferred)));
+    return;
 }
 
 

@@ -43,8 +43,8 @@ public:
 
 protected:
     // 异步IO
-    void do_read();
-    void do_write();
+    virtual void do_read();
+    virtual void do_write();
 
     virtual void read_handler(const boost::system::error_code& ec, std::size_t bytes_transferred) = 0;
     virtual void write_handler(const boost::system::error_code &ec, std::size_t bytes_transferred) = 0;
