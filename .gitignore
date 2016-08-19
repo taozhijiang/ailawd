@@ -1,0 +1,6 @@
+ailawd
+ailawd.*
+obj/
+*.log
+test/obj/
+test/ailawd_test
