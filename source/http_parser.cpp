@@ -44,7 +44,7 @@ namespace airobot {
 					boost::regex("([a-zA-Z]+)[ ]+([^ ]+)([ ]+(.*))?")))
                 {
                     header_opts_.insert(std::make_pair(http_proto::header_options::request_method, 
-                                                       boost::algorithm::trim_copy(string(what[1])))); 
+                                                       boost::algorithm::trim_copy(boost::to_upper_copy(string(what[1]))))); 
                     header_opts_.insert(std::make_pair(http_proto::header_options::request_uri, 
                                                        boost::algorithm::trim_copy(string(what[2])))); 
                     header_opts_.insert(std::make_pair(http_proto::header_options::http_version, 
@@ -58,9 +58,14 @@ namespace airobot {
 
     std::string http_parser::request_option(const std::string option_name)
     {
-        auto search = header_opts_.find(option_name); 
-        if (search != header_opts_.end()) 
-            return search->second;
+        if (!option_name.size())
+            return "";
+        
+        for (auto &item : header_opts_)
+        {
+            if (boost::iequals(option_name, item.first)) 
+                return item.second;
+        }
         
         return "";
     }

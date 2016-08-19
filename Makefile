@@ -43,4 +43,4 @@ $(objs) : $(OBJDIR)/%.o: %.cpp
 .PHONY : clean 
 clean :	
 	-rm -fr $(OBJDIR)
-	-rm -fr $(TARGIT_DIR)/$(PACKAGE)
+	-rm -fr $(TARGET_DIR)/$(PACKAGE)

@@ -5,6 +5,25 @@ namespace airobot {
 
     namespace http_proto {
 
+        static const string content_ok = "{}";
+
+        static const string content_error =  "<html>"
+                      "<head><title>Internal Server Error</title></head>"
+                      "<body><h1>500 Internal Server Error</h1></body>"
+                      "</html>";
+        static const string content_bad_request = "<html>"
+                      "<head><title>Bad Request</title></head>"
+                      "<body><h1>400 Bad Request</h1></body>"
+                      "</html>";
+        static const string content_forbidden = "<html>"
+                      "<head><title>Forbidden</title></head>"
+                      "<body><h1>403 Forbidden</h1></body>"
+                      "</html>";
+        static const string content_not_found = "<html>"
+                      "<head><title>Not Found</title></head>"
+                      "<body><h1>404 Not Found</h1></body>"
+                      "</html>";
+
         namespace header_options {
 
         	static const std::string request_method("request_method_");     // (GET/POST)
@@ -64,6 +83,27 @@ namespace airobot {
               "HTTP/1.1 502 Bad Gateway\r\n";
             static const std::string service_unavailable =
               "HTTP/1.1 503 Service Unavailable\r\n";
+
+        }
+
+        namespace status_digit {
+
+            static const unsigned ok = 200;
+            static const unsigned created = 201;
+            static const unsigned accepted = 202;
+            static const unsigned no_content = 204;
+            static const unsigned multiple_choices = 300;
+            static const unsigned moved_permanently = 301;
+            static const unsigned moved_temporarily = 302;
+            static const unsigned not_modified = 304;
+            static const unsigned bad_request = 400;
+            static const unsigned unauthorized = 401;
+            static const unsigned forbidden = 403;
+            static const unsigned not_found = 404;
+            static const unsigned internal_server_error = 500;
+            static const unsigned not_implemented = 501;
+            static const unsigned bad_gateway = 502;
+            static const unsigned service_unavailable = 503;
 
         }
         

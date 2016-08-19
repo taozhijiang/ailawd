@@ -7,7 +7,12 @@
 using namespace boost::posix_time;
 using namespace boost::gregorian;
 
+#include <boost/algorithm/string.hpp>
+
 namespace airobot {
+
+namespace http_opts = http_proto::header_options;
+namespace http_stat = http_proto::status;
 
 front_conn::front_conn(boost::shared_ptr<ip::tcp::socket> p_sock,
                        http_server& server):
@@ -30,14 +35,25 @@ void front_conn::read_handler(const boost::system::error_code& ec, size_t bytes_
 {
     if (!ec && bytes_transferred) 
     {
-        //cout << &(*p_buffer_)[0] << endl;
-
-        // read more
-        //string ret = reply::reply_generate(string(&(*p_buffer_)[0]), http_proto::status::ok); 
-        //string ret = reply::reply_generate("<html><body><p>Hello World!</p></body></html>");
-
         if( parser_.parse_request(p_buffer_->data()) )
         {
+            if (! boost::iequals(parser_.request_option(http_opts::request_method), "POST") )
+            {
+                BOOST_LOG_T(error) << "Invalid request method: " << parser_.request_option(http_opts::request_method);
+                memcpy(p_write_->data(), reply::fixed_reply_bad_request.c_str(), 
+                       reply::fixed_reply_bad_request.size()+1);
+                goto write_return;
+            }
+
+            if (! boost::iequals(parser_.request_option(http_opts::request_uri), "/ailaw") &&
+                ! boost::iequals(parser_.request_option(http_opts::request_uri), "/ailaw/") ) 
+            {       
+                BOOST_LOG_T(error) << "Invalid request uri: " << parser_.request_option(http_opts::request_uri);
+                memcpy(p_write_->data(), reply::fixed_reply_not_found.c_str(), 
+                       reply::fixed_reply_not_found.size()+1);
+                goto write_return;
+            }
+
             string body = parser_.request_option(http_proto::header_options::request_body);
             if (body != "")
             {
@@ -45,6 +61,24 @@ void front_conn::read_handler(const boost::system::error_code& ec, size_t bytes_
                 auto json_parsed = json11::Json::parse(body, json_err);
 
                 // TO DO 
+                if (!json_err.empty())
+                {
+                    BOOST_LOG_T(error) << "JSON parse error!";
+                    goto error_return;
+                }
+
+                if (!boost::equals(json_parsed["access_id"].string_value(), "11488058246"))
+                {
+                    BOOST_LOG_T(error) << "Wrong access_id: " << json_parsed["access_id"].string_value();
+                    goto error_return;
+                }
+
+                cout << body << endl;
+
+                memcpy(p_write_->data(), reply::fixed_reply_ok.c_str(), 
+                        reply::fixed_reply_ok.size()+1);
+
+                goto write_return;
             }
         }
     }
@@ -55,14 +89,14 @@ void front_conn::read_handler(const boost::system::error_code& ec, size_t bytes_
         return;
     }
 
-    memcpy(p_write_->data(), 
-           reply::fixed_reply_error.c_str(), 
+error_return:
+    memcpy(p_write_->data(), reply::fixed_reply_error.c_str(), 
            reply::fixed_reply_error.size()+1);
 
-ok_return:
+write_return:
     do_write();
 
-ok_no_return:
+read_return:
     do_read();
 
     return;

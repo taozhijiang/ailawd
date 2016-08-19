@@ -27,8 +27,11 @@ class reply
 public:
     reply() = delete;
 
-    static std::string fixed_reply_error;
-    static std::string fixed_reply_ok;
+    static string fixed_reply_error;
+    static string fixed_reply_bad_request;
+    static string fixed_reply_forbidden;
+    static string fixed_reply_not_found;
+    static string fixed_reply_ok;
 
     static string reply_generate(const string& content, const string& stat_str)
     {

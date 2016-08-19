@@ -9,8 +9,11 @@
 
 namespace airobot {
 
-std::string reply::fixed_reply_error;
-std::string reply::fixed_reply_ok;
+string reply::fixed_reply_error;
+string reply::fixed_reply_bad_request;
+string reply::fixed_reply_forbidden;
+string reply::fixed_reply_not_found;
+string reply::fixed_reply_ok;
 
 boost::condition_variable_any http_server::conn_notify;
 boost::mutex http_server::conn_notify_mutex;
@@ -30,14 +33,21 @@ http_server::http_server(const std::string& address, unsigned short port,
 
 /// Run the server's io_service loop.
 
+namespace http_stats = http_proto::status;
+
 void http_server::run()
 {
-    string err =  "<html>"
-                  "<head><title>Internal Server Error</title></head>"
-                  "<body><h1>500 Internal Server Error</h1></body>"
-                  "</html>";
-    reply::fixed_reply_error = reply::reply_generate(err, http_proto::status::internal_server_error);
-    reply::fixed_reply_ok = reply::reply_generate("{}", http_proto::status::ok);
+    reply::fixed_reply_ok = 
+        reply::reply_generate(http_proto::content_ok, http_stats::ok); 
+    reply::fixed_reply_bad_request = 
+        reply::reply_generate(http_proto::content_bad_request, http_stats::bad_request); 
+    reply::fixed_reply_forbidden = 
+        reply::reply_generate(http_proto::content_forbidden, http_stats::forbidden); 
+    reply::fixed_reply_not_found = 
+        reply::reply_generate(http_proto::content_not_found, http_stats::not_found); 
+    reply::fixed_reply_error = 
+        reply::reply_generate(http_proto::content_error, http_stats::internal_server_error); 
+
     io_service_.run();
 }
 
