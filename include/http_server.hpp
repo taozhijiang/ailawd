@@ -14,6 +14,9 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
 
+#include "aisql_conns_manage.hpp"
+#include "aisql_connection.hpp"
+
 namespace airobot {
 
 using namespace boost::asio;
@@ -67,6 +70,8 @@ private:
     front_conn_type front_conns_;
     //std::set<connection_ptr> connections_;
     //std::map<unsigned long long session_id, connection_ptr> connections_;
+
+    boost::shared_ptr<aisqlpp::conns_manage> sql_conns_;
 };
 
 } // END NAMESPACE

@@ -1,5 +1,5 @@
-#ifndef _GENERAL_H_
-#define _GENERAL_H_
+#ifndef _GENERAL_HPP_
+#define _GENERAL_HPP_
 
 #include <iostream>
 using std::cout;
@@ -12,29 +12,22 @@ using std::string;
 using std::int64_t;
 using std::uint64_t;
 
-#include <boost/asio.hpp>
-using namespace boost::asio;
-
 #include <boost/shared_ptr.hpp>
-#include <boost/make_shared.hpp> 
-
-#include <boost/bind.hpp>
-
 #include <boost/log/trivial.hpp>
 
-namespace airobot {
-
-typedef boost::shared_ptr<ip::tcp::socket> socket_ptr;
+namespace aisqlpp {
 
 extern char *basename(char *path);
+#ifndef BOOST_LOG_T
 #if 0
 #define BOOST_LOG_T(x) BOOST_LOG_TRIVIAL(x)<<::basename(__FILE__)<<":"<<__LINE__<<"[@"<<__func__<<"]"<<" " 
 #else
-#define BOOST_LOG_T(x) std::cerr<<std::endl<<#x<<::basename(__FILE__)<<":"<<__LINE__<<"[@"<<__func__<<"]"<<" " 
+#define BOOST_LOG_T(x) std::cerr<<std::endl<<#x<<":"<<__LINE__<<"[@"<<__func__<<"]"<<" " 
+#endif
 #endif
 
 }
 
 
 
-#endif // _GENERAL_H_
+#endif // _GENERAL_HPP_

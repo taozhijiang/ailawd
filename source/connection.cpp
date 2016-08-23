@@ -1,3 +1,5 @@
+#include "general.hpp"
+
 #include "connection.hpp"
 #include "reply.hpp"
 #include "http_server.hpp"
@@ -66,6 +68,12 @@ void connection::fill_and_send(const char* data, size_t len)
     memcpy(p_write_->data(), data, len);
 
     do_write();
+}
+
+connection::~connection()
+{
+    p_sock_->close();
+    set_stats(conn_error);
 }
 
 }

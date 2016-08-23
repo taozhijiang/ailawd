@@ -30,6 +30,13 @@ http_server::http_server(const std::string& address, unsigned short port,
     acceptor_.set_option(ip::tcp::acceptor::reuse_address(true));
     acceptor_.listen();
 
+    sql_conns_ =  boost::make_shared<aisqlpp::conns_manage>(10, "192.168.1.233", "v5kf", "v5kf", "v5_law");
+    string str = "SELECT count(uuid) FROM v5_law_text;";
+    boost::shared_ptr<aisqlpp::connection> ptr = sql_conns_->request_conn(); 
+    size_t cnt = ptr->execute_query_count(str);
+    BOOST_LOG_T(info) << "TOTAL cases in database: " << cnt << endl;
+    sql_conns_->free_conn(ptr);
+
     do_accept();
 }
 

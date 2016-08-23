@@ -53,7 +53,7 @@ protected:
     boost::shared_ptr<std::vector<char> > p_buffer_;
     boost::shared_ptr<std::vector<char> > p_write_;
 
-    virtual ~connection() {}
+    virtual ~connection();
 
     enum connection_stats stats_;
 
