@@ -40,6 +40,8 @@ public:
     void set_stats(enum connection_stats stat) { stats_ = stat; }
 
     void fill_and_send(const char* data, size_t len);
+    void fill_for_http(const char* data, size_t len);
+    void fill_for_http(const string& str);
 
 protected:
     // 异步IO

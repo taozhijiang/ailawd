@@ -45,8 +45,11 @@ namespace airobot {
                 {
                     header_opts_.insert(std::make_pair(http_proto::header_options::request_method, 
                                                        boost::algorithm::trim_copy(boost::to_upper_copy(string(what[1]))))); 
-                    header_opts_.insert(std::make_pair(http_proto::header_options::request_uri, 
-                                                       boost::algorithm::trim_copy(string(what[2])))); 
+                    string uri = boost::algorithm::trim_copy(string(what[2]));
+                    while (uri[uri.size()-1] == '/')
+                        uri = uri.substr(0, uri.size()-1);
+
+                    header_opts_.insert(std::make_pair(http_proto::header_options::request_uri, uri)); 
                     header_opts_.insert(std::make_pair(http_proto::header_options::http_version, 
                                                        boost::algorithm::trim_copy(string(what[3])))); 
                 }

@@ -38,6 +38,15 @@ public:
 
     void notify_conn_error();
 
+
+private:
+    // uri handler，如果成功返回true，对应的回复消息封装在_write中，直接调用
+    // do_write发送，否则内容未定义，手动覆盖生成错误回复信息
+    bool ailaw_handler();
+    bool analyse_handler();
+    bool item_handler();
+
+
 private:
     http_parser parser_;
     http_server& server_;

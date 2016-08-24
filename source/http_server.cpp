@@ -25,12 +25,12 @@ http_server::http_server(const std::string& address, unsigned short port,
     ep_(ip::tcp::endpoint(ip::address::from_string(address), port)),
     acceptor_(io_service_, ep_),
     front_conns_(),
-    concurr_sz_(c_cz)
+    concurr_sz_(c_cz*2)
 {
     acceptor_.set_option(ip::tcp::acceptor::reuse_address(true));
     acceptor_.listen();
 
-    sql_conns_ =  boost::make_shared<aisqlpp::conns_manage>(10, "192.168.1.233", "v5kf", "v5kf", "v5_law");
+    sql_conns_ =  boost::make_shared<aisqlpp::conns_manage>(c_cz+2, "192.168.1.233", "v5kf", "v5kf", "v5_law");
     string str = "SELECT count(uuid) FROM v5_law_text;";
     boost::shared_ptr<aisqlpp::connection> ptr = sql_conns_->request_conn(); 
     size_t cnt = ptr->execute_query_count(str);
@@ -146,7 +146,7 @@ front_conn_ptr http_server::request_connection(uint64_t session_id)
 void http_server::show_conns_info(bool verbose)
 {
     size_t total_cnt = 0, err_cnt = 0, work_cnt = 0, pend_cnt = 0;
-    size_t normal_cnt = 0, zero_cnt = 0, negone_cnt = 0;
+//    size_t normal_cnt = 0, zero_cnt = 0, negone_cnt = 0;
  
     front_conn_type::left_map& view = front_conns_.left;
 
@@ -163,21 +163,23 @@ void http_server::show_conns_info(bool verbose)
         if (const_iter->first->get_stats() == conn_error)
         { err_cnt++;  if (verbose) cout << "error" ; }
 
-        cout << endl << "\t";
-        if ((int64_t)const_iter->second == 0)
-        { zero_cnt++;   if (verbose) cout << "session: 0" << endl; }
-        if ((int64_t)const_iter->second == -1)
-        { negone_cnt++; if (verbose) cout << "session: -1" << endl; }
-        else
-        { normal_cnt++; if (verbose) cout << "session: " << const_iter->second << endl; }
+//        cout << endl << "\t";
+//        if ((int64_t)const_iter->second == 0)
+//        { zero_cnt++;   if (verbose) cout << "session: 0" << endl; }
+//        if ((int64_t)const_iter->second == -1)
+//        { negone_cnt++; if (verbose) cout << "session: -1" << endl; }
+//        else
+//        { normal_cnt++; if (verbose) cout << "session: " << const_iter->second << endl; }
 
         total_cnt ++;
     }
 
     cout << boost::format("[FRONT_SERVER  ] total:%d, working:%d, pending:%d, error:%d ")
         % total_cnt % work_cnt % pend_cnt % err_cnt << endl;
-    cout << boost::format("\tsession, normal:%d, 0:%d, -1:%d ")
-        % normal_cnt % zero_cnt % negone_cnt << endl;
+
+    // not used
+    //cout << boost::format("\tsession, normal:%d, 0:%d, -1:%d ")
+    //    % normal_cnt % zero_cnt % negone_cnt << endl;
 
     return;
 }

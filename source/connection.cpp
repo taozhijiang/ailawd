@@ -24,9 +24,9 @@ connection::connection(boost::shared_ptr<ip::tcp::socket> p_sock):
 void connection::start()
 {
     /**
-     * 这里需要注意的是，如果do_read()不是虚函数，而派生类只是简单的覆盖， 
-     * 那么在accept　handler中调用的new_c->start()会导致这里会调用基类 
-     * 版本的do_read 
+     * 这里需要注意的是，如果do_read()不是虚函数，而派生类只是简单的覆盖，
+     * 那么在accept　handler中调用的new_c->start()会导致这里会调用基类
+     * 版本的do_read
      */
     set_stats(conn_working);
     do_read();
@@ -69,6 +69,28 @@ void connection::fill_and_send(const char* data, size_t len)
 
     do_write();
 }
+
+
+void connection::fill_for_http(const char* data, size_t len)
+{
+    assert(data && len);
+
+    string enc =
+        reply::reply_generate(data, len, http_proto::status::ok);
+    memcpy(p_write_->data(), enc.c_str(), enc.size()+1);
+
+    return;
+}
+
+void connection::fill_for_http(const string& str)
+{
+    string enc =
+        reply::reply_generate(str, http_proto::status::ok);
+    memcpy(p_write_->data(), enc.c_str(), enc.size()+1);
+
+    return;
+}
+
 
 connection::~connection()
 {

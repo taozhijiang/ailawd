@@ -3,6 +3,11 @@
 
 namespace airobot {
 
+    namespace win_server {
+        static const string ip = "192.168.1.222";
+        static const unsigned short port = 5566;
+    }
+
     namespace http_proto {
 
         static const string content_ok = "{}";
