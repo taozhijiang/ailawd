@@ -23,8 +23,19 @@ front_conn::front_conn(boost::shared_ptr<ip::tcp::socket> p_sock,
     parser_(),
     server_(server)
 {
-    p_buffer_ = boost::make_shared<std::vector<char> >(16*1024, 0);
-    p_write_  = boost::make_shared<std::vector<char> >(16*1024, 0);
+    // p_buffer_ & p_write_ 
+    // already allocated @ connection
+}
+
+void front_conn::start()
+{
+    /**
+     * 这里需要注意的是，如果do_read()不是虚函数，而派生类只是简单的覆盖，
+     * 那么在accept　handler中调用的new_c->start()会导致这里会调用基类
+     * 版本的do_read
+     */
+    set_stats(conn_working);
+    do_read_head();
 }
 
 void front_conn::stop()
@@ -34,8 +45,7 @@ void front_conn::stop()
 }
 
 
-// 改写基类的读写
-void front_conn::do_read()
+void front_conn::do_read_head()
 {
     if (get_stats() != conn_working)
     {
@@ -44,12 +54,35 @@ void front_conn::do_read()
     }
 
     BOOST_LOG_T(info) << "strand read... in " << boost::this_thread::get_id();
-    p_sock_->async_read_some(buffer(p_buffer_->data() + r_size_, p_buffer_->size() - r_size_),
+    async_read_until(*p_sock_, request_,
+                             "\r\n\r\n",
                              strand_.wrap(
-                                boost::bind(&front_conn::read_handler,
-                                  this,
-                                  boost::asio::placeholders::error,
-                                  boost::asio::placeholders::bytes_transferred)));
+                                 boost::bind(&front_conn::read_head_handler,
+                                     this,
+                                     boost::asio::placeholders::error,
+                                     boost::asio::placeholders::bytes_transferred)));
+    return;
+}
+
+
+void front_conn::do_read_body()
+{
+    if (get_stats() != conn_working)
+    {
+        BOOST_LOG_T(error) << "SOCK STATUS: " << get_stats();
+        return;
+    }
+
+    size_t len = ::atoi(parser_.request_option(http_opts::content_length).c_str());
+
+    BOOST_LOG_T(info) << "strand read... in " << boost::this_thread::get_id();
+    async_read(*p_sock_, buffer(p_buffer_->data() + r_size_, len - r_size_),
+                    boost::asio::transfer_at_least(len - r_size_), 
+                             strand_.wrap(
+                                 boost::bind(&front_conn::read_body_handler,
+                                     this,
+                                     boost::asio::placeholders::error,
+                                     boost::asio::placeholders::bytes_transferred)));
     return;
 }
 
@@ -62,68 +95,70 @@ void front_conn::do_write()
     }
 
     BOOST_LOG_T(info) << "strand write... in " << boost::this_thread::get_id();
-    p_sock_->async_write_some(buffer(*p_write_, w_size_),
-                              strand_.wrap(
-                                boost::bind(&front_conn::write_handler,
-                                  this,
-                                  boost::asio::placeholders::error,
-                                  boost::asio::placeholders::bytes_transferred)));
+    async_write(*p_sock_, buffer(*p_write_, w_size_),
+                    boost::asio::transfer_exactly(w_size_),
+                             strand_.wrap(
+                                 boost::bind(&front_conn::write_handler,
+                                     this,
+                                     boost::asio::placeholders::error,
+                                     boost::asio::placeholders::bytes_transferred)));
     return;
 }
 
-
-void front_conn::read_handler(const boost::system::error_code& ec, size_t bytes_transferred)
+void front_conn::read_head_handler(const boost::system::error_code& ec, size_t bytes_transferred)
 {
     if (!ec && bytes_transferred)
     {
-        if (p_sock_->available())
-        {
-            BOOST_LOG_T(info) << "socket still available: " << p_sock_->available(); 
-            do_read();
-            return;
-        }
+        std::string head_str (boost::asio::buffers_begin(request_.data()), 
+                              boost::asio::buffers_begin(request_.data()) + request_.size());
 
-        r_size_ = 0;
-        if (parser_.parse_request(p_buffer_->data()))
+        request_.consume(bytes_transferred); // skip the head
+        if (parser_.parse_request(head_str.c_str()))
         {
             if (! boost::iequals(parser_.request_option(http_opts::request_method), "POST") )
             {
                 BOOST_LOG_T(error) << "Invalid request method: " << parser_.request_option(http_opts::request_method);
-                memcpy(p_write_->data(), reply::fixed_reply_bad_request.c_str(),
-                       reply::fixed_reply_bad_request.size()+1);
+                fill_for_http(http_proto::content_bad_request, http_proto::status::bad_request);
                 goto write_return;
             }
 
-            if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/ailaw") )
+            if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/ailaw") ||
+                 boost::iequals(parser_.request_option(http_opts::request_uri), "/analyse") ||
+                 boost::iequals(parser_.request_option(http_opts::request_uri), "/item") )
             {
-                if( ailaw_handler() == false )
+                size_t len = ::atoi(parser_.request_option(http_opts::content_length).c_str());
+                r_size_ = 0;
+
+                // first async_read_until may read more additional data, if so
+                // then move additional data possible
+                if( request_.size() )
                 {
-                     BOOST_LOG_T(error) << "process error: " << parser_.request_option(http_opts::request_uri);
-                     goto error_return;
+                    r_size_ = request_.size();
+                    std::string additional (boost::asio::buffers_begin(request_.data()), 
+                              boost::asio::buffers_begin(request_.data()) + r_size_);
+                    memcpy(p_buffer_->data(), additional.c_str(), r_size_ );
+                    request_.consume(r_size_); // skip the head
                 }
 
-            }
-            else if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/analyse") )
-            {
-                if( analyse_handler() == false )
+                // normally, we will return these 2 cases
+                if (r_size_ < len)
                 {
-                     BOOST_LOG_T(error) << "process error: " << parser_.request_option(http_opts::request_uri);
-                     goto error_return;
+                    // need to read more data
+                    do_read_body();
+                    return;
                 }
-            }
-            else if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/item") )
-            {
-                if( item_handler() == false )
+                else
                 {
-                     BOOST_LOG_T(error) << "process error: " << parser_.request_option(http_opts::request_uri);
-                     goto error_return;
+                    // call the process callback directly
+                    boost::system::error_code ec;
+                    read_body_handler(ec, r_size_);
+                    return;
                 }
             }
             else
             {
                 BOOST_LOG_T(error) << "Invalid request uri: " << parser_.request_option(http_opts::request_uri);
-                memcpy(p_write_->data(), reply::fixed_reply_not_found.c_str(),
-                       reply::fixed_reply_not_found.size()+1);
+                fill_for_http(http_proto::content_not_found, http_proto::status::not_found); 
                 goto write_return;
             }
 
@@ -132,7 +167,7 @@ void front_conn::read_handler(const boost::system::error_code& ec, size_t bytes_
         }
         else
         {
-            BOOST_LOG_T(error) << "Parse request error: " << p_buffer_->data() << endl;
+            BOOST_LOG_T(error) << "Parse request error: " << head_str << endl;
             goto error_return;
         }
     }
@@ -144,13 +179,82 @@ void front_conn::read_handler(const boost::system::error_code& ec, size_t bytes_
     }
 
 error_return:
-    memcpy(p_write_->data(), reply::fixed_reply_error.c_str(),
-           reply::fixed_reply_error.size()+1);
+    fill_for_http(http_proto::content_error, http_proto::status::internal_server_error); 
 
 write_return:
     do_write();
 
-    do_read();
+    // if error, we will not read anymore
+    // notify_conn_error();
+
+    return;
+}
+
+
+void front_conn::read_body_handler(const boost::system::error_code& ec, size_t bytes_transferred)
+{
+    if (!ec && bytes_transferred)
+    {   
+
+        size_t len = ::atoi(parser_.request_option(http_opts::content_length).c_str());
+        r_size_ += bytes_transferred;
+
+        if (r_size_ < len)
+        {
+            // need to read more!
+            do_read_body();
+            return;
+        }
+
+        if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/ailaw") )
+        {
+            if( ailaw_handler() == false )
+            {
+                 BOOST_LOG_T(error) << "process error: " << parser_.request_option(http_opts::request_uri);
+                 goto error_return;
+            }
+
+        }
+        else if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/analyse") )
+        {
+            if( analyse_handler() == false )
+            {
+                 BOOST_LOG_T(error) << "process error: " << parser_.request_option(http_opts::request_uri);
+                 goto error_return;
+            }
+        }
+        else if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/item") )
+        {
+            if( item_handler() == false )
+            {
+                 BOOST_LOG_T(error) << "process error: " << parser_.request_option(http_opts::request_uri);
+                 goto error_return;
+            }
+        }
+        else
+        {
+            BOOST_LOG_T(error) << "Invalid request uri: " << parser_.request_option(http_opts::request_uri);
+            fill_for_http(http_proto::content_not_found, http_proto::status::not_found); 
+            goto write_return;
+        }
+
+        // default, OK
+        goto write_return;
+    }
+    else if (ec != boost::asio::error::operation_aborted)
+    {
+        BOOST_LOG_T(error) << "READ ERROR FOUND: " << ec;
+        notify_conn_error();
+        return;
+    }
+
+error_return:
+    fill_for_http(http_proto::content_error, http_proto::status::internal_server_error); 
+
+write_return:
+    do_write();
+
+    do_read_head();
 
     return;
 }
@@ -165,7 +269,7 @@ void front_conn::write_handler(const boost::system::error_code& ec, size_t bytes
     }
     else if (ec != boost::asio::error::operation_aborted)
     {
-        BOOST_LOG_T(error) << "WRITE ERROR FOUND!";
+        BOOST_LOG_T(error) << "WRITE ERROR FOUND:" << ec;
         notify_conn_error();
     }
 }
@@ -175,7 +279,6 @@ void front_conn::notify_conn_error()
 {
     {
         boost::lock_guard<boost::mutex> lock(server_.conn_notify_mutex);
-        p_sock_->close();
         r_size_ = 0;
         w_size_ = 0;
         set_stats(conn_error);
@@ -187,14 +290,15 @@ void front_conn::notify_conn_error()
 // 添加各种URI的handler
 bool front_conn::ailaw_handler()
 {
-    string body = parser_.request_option(http_proto::header_options::request_body);
+    string body = string(p_buffer_->data(), r_size_);
     string json_err;
     auto json_parsed = json11::Json::parse(body, json_err);
 
     // TO DO
     if (!json_err.empty())
     {
-        BOOST_LOG_T(error) << "JSON parse error: " << body;
+        BOOST_LOG_T(error) << "JSON parse error: " << json_err;
+        BOOST_LOG_T(error) << "<<<" << body << ">>>";
         return false;
     }
 
@@ -210,14 +314,15 @@ bool front_conn::ailaw_handler()
 
 bool front_conn::analyse_handler()
 {
-    string body = parser_.request_option(http_proto::header_options::request_body);
+    string body = string(p_buffer_->data(), r_size_);
     string json_err;
     auto json_parsed = json11::Json::parse(body, json_err);
 
     // TO DO
     if (!json_err.empty())
     {
-        BOOST_LOG_T(error) << "JSON parse error: " << body;
+        BOOST_LOG_T(error) << "JSON parse error: " << json_err;
+        BOOST_LOG_T(error) << "<<<" << body << ">>>";
         return false;
     }
 
@@ -255,21 +360,22 @@ bool front_conn::analyse_handler()
         return false;
     }
 
-    fill_for_http(p_buff->data(), len);
+    fill_for_http(p_buff->data(), len, http_proto::status::ok);
 
     return true;
 }
 
 bool front_conn::item_handler()
 {
-    string body = parser_.request_option(http_proto::header_options::request_body);
+    string body = string(p_buffer_->data(), r_size_);
     string json_err;
     auto json_parsed = json11::Json::parse(body, json_err);
 
     // TO DO
     if (!json_err.empty())
     {
-        BOOST_LOG_T(error) << "JSON parse error: " << body;
+        BOOST_LOG_T(error) << "JSON parse error: " << json_err;
+        BOOST_LOG_T(error) << "<<<" << body << ">>>";
         return false;
     }
 

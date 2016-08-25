@@ -27,12 +27,6 @@ class reply
 public:
     reply() = delete;
 
-    static string fixed_reply_error;
-    static string fixed_reply_bad_request;
-    static string fixed_reply_forbidden;
-    static string fixed_reply_not_found;
-    static string fixed_reply_ok;
-
     /**
      * 由于最终的底层都是调用c_str()发送的，所以这里不添加额外的字符
      */

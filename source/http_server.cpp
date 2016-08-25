@@ -1,20 +1,12 @@
 #include <iostream>
 
 #include "http_server.hpp"
-#include "http_proto.hpp"
 #include "front_conn.hpp"
-#include "reply.hpp"
 
 #include <boost/format.hpp>
 #include <boost/thread.hpp>
 
 namespace airobot {
-
-string reply::fixed_reply_error;
-string reply::fixed_reply_bad_request;
-string reply::fixed_reply_forbidden;
-string reply::fixed_reply_not_found;
-string reply::fixed_reply_ok;
 
 boost::condition_variable_any http_server::conn_notify;
 boost::mutex http_server::conn_notify_mutex;
@@ -30,6 +22,7 @@ http_server::http_server(const std::string& address, unsigned short port,
     acceptor_.set_option(ip::tcp::acceptor::reuse_address(true));
     acceptor_.listen();
 
+    // 数据库连接池初始化部分
     sql_conns_ =  boost::make_shared<aisqlpp::conns_manage>(c_cz+2, "192.168.1.233", "v5kf", "v5kf", "v5_law");
     string str = "SELECT count(uuid) FROM v5_law_text;";
     boost::shared_ptr<aisqlpp::connection> ptr = sql_conns_->request_conn(); 
@@ -46,18 +39,6 @@ namespace http_stats = http_proto::status;
 
 void http_server::run()
 {
-    reply::fixed_reply_ok = 
-        reply::reply_generate(http_proto::content_ok, http_stats::ok); 
-    reply::fixed_reply_bad_request = 
-        reply::reply_generate(http_proto::content_bad_request, http_stats::bad_request); 
-    reply::fixed_reply_forbidden = 
-        reply::reply_generate(http_proto::content_forbidden, http_stats::forbidden); 
-    reply::fixed_reply_not_found = 
-        reply::reply_generate(http_proto::content_not_found, http_stats::not_found); 
-    reply::fixed_reply_error = 
-        reply::reply_generate(http_proto::content_error, http_stats::internal_server_error); 
-
-
     // Create a pool of threads to run all of the io_services.
     std::vector<boost::shared_ptr<boost::thread> > threads_pool;
     for (std::size_t i = 0; i < concurr_sz_; ++i) 

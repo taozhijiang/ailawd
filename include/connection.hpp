@@ -33,15 +33,15 @@ public:
     /// Construct a connection with the given socket.
     explicit connection(boost::shared_ptr<ip::tcp::socket> p_sock);
 
-    void start();
+    virtual void start();
     virtual void stop() = 0;
 
     enum connection_stats get_stats() { return stats_; }
     void set_stats(enum connection_stats stat) { stats_ = stat; }
 
     void fill_and_send(const char* data, size_t len);
-    void fill_for_http(const char* data, size_t len);
-    void fill_for_http(const string& str);
+    void fill_for_http(const char* data, size_t len, const string& status);
+    void fill_for_http(const string& str, const string& status);
 
 protected:
     // 异步IO

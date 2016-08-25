@@ -83,22 +83,21 @@ void connection::fill_and_send(const char* data, size_t len)
 }
 
 
-void connection::fill_for_http(const char* data, size_t len)
+void connection::fill_for_http(const char* data, size_t len, const string& status = http_proto::status::ok)
 {
     assert(data && len);
 
-    string enc =
-        reply::reply_generate(data, len, http_proto::status::ok);
+    string enc = reply::reply_generate(data, len, status);
     memcpy(p_write_->data(), enc.c_str(), enc.size()+1);
     w_size_ = enc.size() + 1;
 
     return;
 }
 
-void connection::fill_for_http(const string& str)
+void connection::fill_for_http(const string& str, const string& status = http_proto::status::ok)
 {
     string enc =
-        reply::reply_generate(str, http_proto::status::ok);
+        reply::reply_generate(str, status);
     memcpy(p_write_->data(), enc.c_str(), enc.size()+1);
 
     w_size_ = enc.size() + 1;
@@ -109,7 +108,6 @@ void connection::fill_for_http(const string& str)
 
 connection::~connection()
 {
-    p_sock_->close();
     set_stats(conn_error);
 }
 
