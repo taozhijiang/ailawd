@@ -44,7 +44,7 @@ void front_conn::do_read()
     }
 
     BOOST_LOG_T(info) << "strand read... in " << boost::this_thread::get_id();
-    p_sock_->async_read_some(buffer(*p_buffer_),
+    p_sock_->async_read_some(buffer(p_buffer_->data() + r_size_, p_buffer_->size() - r_size_),
                              strand_.wrap(
                                 boost::bind(&front_conn::read_handler,
                                   this,
@@ -62,7 +62,7 @@ void front_conn::do_write()
     }
 
     BOOST_LOG_T(info) << "strand write... in " << boost::this_thread::get_id();
-    p_sock_->async_write_some(buffer(*p_write_),
+    p_sock_->async_write_some(buffer(*p_write_, w_size_),
                               strand_.wrap(
                                 boost::bind(&front_conn::write_handler,
                                   this,
@@ -76,7 +76,15 @@ void front_conn::read_handler(const boost::system::error_code& ec, size_t bytes_
 {
     if (!ec && bytes_transferred)
     {
-        if( parser_.parse_request(p_buffer_->data()) )
+        if (p_sock_->available())
+        {
+            BOOST_LOG_T(info) << "socket still available: " << p_sock_->available(); 
+            do_read();
+            return;
+        }
+
+        r_size_ = 0;
+        if (parser_.parse_request(p_buffer_->data()))
         {
             if (! boost::iequals(parser_.request_option(http_opts::request_method), "POST") )
             {
@@ -152,10 +160,8 @@ void front_conn::write_handler(const boost::system::error_code& ec, size_t bytes
 {
     if (!ec && bytes_transferred)
     {
-        //cout << "WRITE OK!" << endl;
-
-        //不会主动调读的
-        //do_write();
+        assert(bytes_transferred == w_size_);
+        w_size_ = 0;
     }
     else if (ec != boost::asio::error::operation_aborted)
     {
@@ -170,6 +176,8 @@ void front_conn::notify_conn_error()
     {
         boost::lock_guard<boost::mutex> lock(server_.conn_notify_mutex);
         p_sock_->close();
+        r_size_ = 0;
+        w_size_ = 0;
         set_stats(conn_error);
     }
     server_.conn_notify.notify_one();

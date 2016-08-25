@@ -17,8 +17,10 @@ connection::connection(boost::shared_ptr<ip::tcp::socket> p_sock):
     p_sock_(p_sock),
     stats_(conn_pending)
 {
-    p_buffer_ = boost::make_shared<std::vector<char> >(16*1024, 0);
-    p_write_  = boost::make_shared<std::vector<char> >(16*1024, 0);
+    r_size_ = 0;
+    w_size_ = 0;
+    p_buffer_ = boost::make_shared<std::vector<char> >(32*1024, 0);
+    p_write_  = boost::make_shared<std::vector<char> >(32*1024, 0);
 }
 
 void connection::start()
@@ -45,6 +47,15 @@ void connection::do_read()
                                   this,
                                   boost::asio::placeholders::error,
                                   boost::asio::placeholders::bytes_transferred));
+#if 0
+    // 线程池多线程访问io_service模型
+    p_sock_->async_read_some(buffer(*p_buffer_),
+                             strand_.wrap(
+                                boost::bind(&front_conn::read_handler,
+                                  this,
+                                  boost::asio::placeholders::error,
+                                  boost::asio::placeholders::bytes_transferred)));
+#endif
 }
 
 void connection::do_write()
@@ -66,6 +77,7 @@ void connection::fill_and_send(const char* data, size_t len)
 {
     assert(data && len);
     memcpy(p_write_->data(), data, len);
+    w_size_ = len;
 
     do_write();
 }
@@ -78,6 +90,7 @@ void connection::fill_for_http(const char* data, size_t len)
     string enc =
         reply::reply_generate(data, len, http_proto::status::ok);
     memcpy(p_write_->data(), enc.c_str(), enc.size()+1);
+    w_size_ = enc.size() + 1;
 
     return;
 }
@@ -87,6 +100,8 @@ void connection::fill_for_http(const string& str)
     string enc =
         reply::reply_generate(str, http_proto::status::ok);
     memcpy(p_write_->data(), enc.c_str(), enc.size()+1);
+
+    w_size_ = enc.size() + 1;
 
     return;
 }

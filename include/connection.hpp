@@ -52,6 +52,10 @@ protected:
     virtual void write_handler(const boost::system::error_code &ec, std::size_t bytes_transferred) = 0;
 
     boost::shared_ptr<ip::tcp::socket> p_sock_;
+
+    // 读写的有效负载记录
+    size_t r_size_;
+    size_t w_size_;
     boost::shared_ptr<std::vector<char> > p_buffer_;
     boost::shared_ptr<std::vector<char> > p_write_;
 
