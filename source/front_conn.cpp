@@ -291,6 +291,7 @@ void front_conn::notify_conn_error()
 bool front_conn::ailaw_handler()
 {
     string body = string(p_buffer_->data(), r_size_);
+    body = string(body.c_str()); // I do not know why, but can fix lots of parse error
     string json_err;
     auto json_parsed = json11::Json::parse(body, json_err);
 
@@ -391,6 +392,7 @@ bool front_conn::ailaw_handler()
 bool front_conn::analyse_handler()
 {
     string body = string(p_buffer_->data(), r_size_);
+    body = string(body.c_str());
     string json_err;
     auto json_parsed = json11::Json::parse(body, json_err);
 
@@ -444,6 +446,7 @@ bool front_conn::analyse_handler()
 bool front_conn::item_handler()
 {
     string body = string(p_buffer_->data(), r_size_);
+    body = string(body.c_str());
     string json_err;
     auto json_parsed = json11::Json::parse(body, json_err);
 
@@ -461,8 +464,40 @@ bool front_conn::item_handler()
         return false;
     }
 
+    if (json_parsed["ws_uuid"].string_value().empty())
+    {
+        BOOST_LOG_T(error) << "Empty ws_uuid";
+        return false;
+    }
 
-    return false;
+    //
+    std::vector<string> d_title = { "文书ID", "地区", "原告", "原告代理人", "被告", "被告代理人",
+        "审判长", "审判员", "陪审员", "书记员", "裁判日期", "案件名称", "审判程序", "案号", "法院名称"};
+    string sql = "SELECT WS_ID, DQ, YG, YGDLR, BG, BGDLR, SPZ, SPY, PSY, SJY, CPRQ, AJMC, SPCX, AH, FYMC "
+                 "FROM v5_law_meta WHERE WS_ID='" + json_parsed["ws_uuid"].string_value() + "';" ;
+    std::vector<string> d_value; 
+    d_value.resize(d_title.size());
+
+    boost::shared_ptr<aisqlpp::connection> ptr = server_.get_sql_manager().request_conn(); 
+    if (ptr->execute_query_values(sql, 
+                                  d_value[0], d_value[1], d_value[2], d_value[3], d_value[4], d_value[5],
+                                  d_value[6], d_value[7], d_value[8], d_value[9], d_value[10], d_value[11],
+                                  d_value[12], d_value[13], d_value[14]) == false) 
+    {
+        server_.get_sql_manager().free_conn(ptr);
+        return false;
+    }
+
+    string d_title_str = json11::Json(d_title).dump();
+    string d_value_str = json11::Json(d_value).dump();
+
+    string ret_str = " { \"d\": " + d_title_str + ", ";
+    ret_str += " \"v\": " + d_value_str;
+    ret_str += " } ";
+
+    fill_for_http(ret_str, http_proto::status::ok);
+
+    return true;
 }
 
 }
