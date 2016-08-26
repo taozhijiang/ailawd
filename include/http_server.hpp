@@ -43,6 +43,7 @@ public:
     int64_t request_session_id(front_conn_ptr ptr);
     bool set_session_id(front_conn_ptr ptr, uint64_t session_id);
     front_conn_ptr request_connection(uint64_t session_id);
+    aisqlpp::conns_manage& get_sql_manager() { return *sql_conns_; }; 
 
     void show_conns_info(bool verbose);
 

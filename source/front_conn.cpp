@@ -308,8 +308,84 @@ bool front_conn::ailaw_handler()
         return false;
     }
 
+    // 数据库查询，返回总体概况信息
+    string sql("SELECT DISTINCT(YEAR(CPRQ)) FROM v5_law_meta;");
+    string sql2("SELECT DISTINCT(DQ_S) FROM v5_law_info;");
+    boost::shared_ptr<aisqlpp::connection> ptr = server_.get_sql_manager().request_conn(); 
+    std::vector<uint64_t> years;
+    std::vector<string>   areas;
 
-    return false;
+    if( (ptr->execute_query_column(sql, years) == false) ||
+        (ptr->execute_query_column(sql2, areas) == false) ) 
+    {
+        server_.get_sql_manager().free_conn(ptr);
+        return false;
+    }
+
+    string year_str = json11::Json(years).dump();
+    string area_str = json11::Json(areas).dump();
+    string d_values_str;
+
+    sql = R"(SELECT DQ_S, count(DQ_S) FROM v5_law_info INNER JOIN v5_law_meta
+                ON v5_law_info.WS_ID = v5_law_meta.WS_ID
+                WHERE YEAR(v5_law_meta.CPRQ)=?
+                GROUP BY(DQ_S);)" ;
+
+    std::vector<uint64_t> values;
+    std::vector<uint64_t> d_values; //总共的结果
+
+    sql::ResultSet* result;
+
+    try {
+        for (auto& item: years)
+        {
+            ptr->create_prep_stmt(sql);
+            ptr->get_prep_stmt()->setInt(1, item);
+            ptr->execute_prep_stmt_query();
+            values.resize(areas.size());
+            std::fill_n(values.begin(), areas.size(), 0);    
+
+            result = ptr->get_result_set();
+            while (result->next()) 
+            {
+                string dq = result->getString(1);
+                uint64_t cnt = result->getInt(2);
+
+                auto r1 = std::find(std::begin(areas), std::end(areas), dq);
+                if (r1 != std::end(areas)) {
+                    auto idx = r1 - std::begin(areas);
+                    values[r1 - std::begin(areas)] = cnt;
+                }
+                else {
+                    abort();
+                }
+            }
+
+            for (auto& i: values)
+                d_values.push_back(i);
+        }
+    }
+    catch (sql::SQLException &e) 
+    {
+        BOOST_LOG_T(error) << " STMT: " << sql << endl;
+        BOOST_LOG_T(error) << "# ERR: " << e.what() << endl;
+        BOOST_LOG_T(error) << " (MySQL error code: " << e.getErrorCode() << endl;
+        BOOST_LOG_T(error) << ", SQLState: " << e.getSQLState() << " )" << endl;
+
+        server_.get_sql_manager().free_conn(ptr);
+        return false;
+    }
+
+    
+    d_values_str = json11::Json(d_values).dump();
+    string ret_str = " { \"d\": [ " + year_str + ", " + area_str + " ], ";
+    ret_str += " \"v\": " + d_values_str;
+    ret_str += " } ";
+
+    fill_for_http(ret_str, http_proto::status::ok);
+
+    server_.get_sql_manager().free_conn(ptr);
+    return true;
 }
 
 bool front_conn::analyse_handler()
@@ -352,15 +428,15 @@ bool front_conn::analyse_handler()
     // 原样传递数据
     sock.write_some(buffer(body));
 
-    boost::shared_ptr<std::vector<char> > p_buff = boost::make_shared<std::vector<char> >(16*1024, 0);
-    size_t len = sock.read_some(buffer(*p_buff), error);
+    std::vector<char> read_buff(32*1024, 0);
+    size_t len = sock.read_some(buffer(read_buff), error);
     if (error)
     {
         BOOST_LOG_T(error) << "READ from server failed!";
         return false;
     }
 
-    fill_for_http(p_buff->data(), len, http_proto::status::ok);
+    fill_for_http(read_buff.data(), len, http_proto::status::ok);
 
     return true;
 }

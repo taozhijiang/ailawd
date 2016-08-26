@@ -12,6 +12,8 @@
 #include <boost/noncopyable.hpp>
 #include <boost/enable_shared_from_this.hpp>
 
+#include <vector>
+
 namespace aisqlpp {
 
 class conns_manage;
@@ -39,12 +41,26 @@ public:
     // 不会修改内部指针引用计数
     sql::ResultSet* get_result_set() { return result_.get(); }
 
-    template<typename T>
+    // prepared stmt 
+    void create_prep_stmt(const string& sql) { prep_stmt_.reset(conn_->prepareStatement(sql)); }
+    sql::PreparedStatement* get_prep_stmt() { return prep_stmt_.get(); }
+    bool execute_prep_stmt_command();
+    bool execute_prep_stmt_query();
+
+    template <typename T>
     bool execute_query_column(const string& sql, std::vector<T>& vec);
-    template<typename T>
+    template <typename T>
     bool execute_query_value(const string& sql, T& val);
-    bool execute_query_column(const string& sql, std::vector<std::string>& vec);
-    bool execute_query_value(const string& sql, std::string& val);
+
+    // 可变模板参数进行查询
+    template<typename ... Args>
+    bool execute_query_values(const string& sql, Args& ... rest);
+
+private:
+    template <typename T>
+    bool raw_query_value(const size_t idx, T& val);
+    template <typename T, typename ... Args>
+    bool raw_query_value(const size_t idx, T& val, Args& ... rest);
 
 private:
     sql::Driver* driver_;
@@ -60,13 +76,52 @@ private:
     boost::shared_ptr<sql::ResultSet>   result_;
 
     // prep_stmt_ create manually
-    // boost::shared_ptr< sql::PreparedStatement > prep_stmt_;
+    boost::shared_ptr< sql::PreparedStatement > prep_stmt_;
 
     // may be used future
     conns_manage&    manage_;
 };
 
-template<typename T>
+template <typename T>
+bool connection::raw_query_value(const size_t idx, T& val)
+{
+    if (typeid(T) == typeid(float) ||
+        typeid(T) == typeid(double) )
+    {
+        val = static_cast<T>(result_->getDouble(idx));
+    }
+    else if (typeid(T) == typeid(int) ||
+        typeid(T) == typeid(int64_t) )
+    {
+        val = static_cast<T>(result_->getInt64(idx));
+    }
+    else if (typeid(T) == typeid(unsigned int) ||
+        typeid(T) == typeid(uint64_t) )
+    {
+        val = static_cast<T>(result_->getUInt64(idx));
+    }
+    else
+    {
+        BOOST_LOG_T(error) << "Unsupported type: " << typeid(T).name() << endl;
+        return false;
+    }
+
+    return true;
+}
+
+// 字符串特例化
+// 特例化如果多次包含连接会重复定义，所以要么static、inline，要不
+// 这里extern进行模板声明，然后在cpp文件中进行定义
+template <>
+inline bool connection::raw_query_value(const size_t idx, std::string& val)
+{
+    val = static_cast<std::string>(result_->getString(idx));
+
+    return true;
+}
+
+// APIs
+template <typename T>
 bool connection::execute_query_column(const string& sql, std::vector<T>& vec)
 {
     try {
@@ -80,30 +135,17 @@ bool connection::execute_query_column(const string& sql, std::vector<T>& vec)
             return false;
 
         vec.clear();
+        T r_val;
+        bool ret_flag = false;
         while (result_->next()) 
         {
-            if (typeid(T) == typeid(float) ||
-                typeid(T) == typeid(double) )
+            if (raw_query_value(1, r_val)) 
             {
-                vec.push_back(static_cast<T>(result_->getDouble(1)));
-            }
-            else if (typeid(T) == typeid(int) ||
-                typeid(T) == typeid(int64_t) )
-            {
-                vec.push_back(static_cast<T>(result_->getInt64(1)));
-            }
-            else if (typeid(T) == typeid(unsigned int) ||
-                typeid(T) == typeid(uint64_t) )
-            {
-                vec.push_back(static_cast<T>(result_->getUInt64(1)));
-            }
-            else
-            {
-                BOOST_LOG_T(error) << "Unsupported type: " << typeid(T).name() << endl;
+                vec.push_back(r_val);
+                ret_flag = true;
             }
         }
-
-        return true;
+        return ret_flag;
 
     } catch (sql::SQLException &e) 
     {
@@ -116,10 +158,10 @@ bool connection::execute_query_column(const string& sql, std::vector<T>& vec)
     }
 }
 
-template<typename T>
+template <typename T>
 bool connection::execute_query_value(const string& sql, T& val)
 {
-        try {
+    try {
 
         if(!conn_->isValid()) 
             conn_->reconnect();
@@ -135,30 +177,57 @@ bool connection::execute_query_value(const string& sql, T& val)
             return false;
         }
 
-        while (result_->next()) 
+        if (result_->next())
+            return raw_query_value(1, val);
+
+        return false;
+
+    } catch (sql::SQLException &e) 
+    {
+        BOOST_LOG_T(error) << " STMT: " << sql << endl;
+        BOOST_LOG_T(error) << "# ERR: " << e.what() << endl;
+        BOOST_LOG_T(error) << " (MySQL error code: " << e.getErrorCode() << endl;
+        BOOST_LOG_T(error) << ", SQLState: " << e.getSQLState() << " )" << endl;
+
+        return false;
+    }
+}
+
+
+
+// 可变模板参数进行查询
+
+template <typename T, typename ... Args>
+bool connection::raw_query_value(const size_t idx, T& val, Args& ... rest)
+{
+    raw_query_value(idx, val);
+
+    return raw_query_value(idx+1, rest ...);
+}
+
+template <typename ... Args>
+bool connection::execute_query_values(const string& sql, Args& ... rest)
+{
+    try {
+
+        if(!conn_->isValid()) 
+            conn_->reconnect();
+
+        stmt_->execute(sql);
+        result_.reset(stmt_->getResultSet());
+        if (result_->rowsCount() == 0)
+            return false;
+
+        if (result_->rowsCount() != 1) 
         {
-            if (typeid(T) == typeid(float) ||
-                typeid(T) == typeid(double) )
-            {
-                val = static_cast<T>(result_->getDouble(1));
-            }
-            else if (typeid(T) == typeid(int) ||
-                typeid(T) == typeid(int64_t) )
-            {
-                val = static_cast<T>(result_->getInt64(1));
-            }
-            else if (typeid(T) == typeid(unsigned int) ||
-                typeid(T) == typeid(uint64_t) )
-            {
-                val = static_cast<T>(result_->getUInt64(1));
-            }
-            else
-            {
-                BOOST_LOG_T(error) << "Unsupported type: " << typeid(T).name() << endl;
-            }
+            BOOST_LOG_T(error) << "Error rows count:" << result_->rowsCount() << endl;
+            return false;
         }
 
-        return true;
+        if (result_->next())
+            return raw_query_value(1, rest ...);
+
+        return false;
 
     } catch (sql::SQLException &e) 
     {
