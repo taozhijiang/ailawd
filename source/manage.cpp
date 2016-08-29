@@ -63,10 +63,6 @@ void boost_log_init(const string filename_prefix)
     return;
 }
 
-typedef boost::bimap< boost::bimaps::set_of<front_conn_ptr>,
-                      boost::bimaps::multiset_of<uint64_t> > front_conn_type_l;
-
-
 void manage_thread(boost::shared_ptr<http_server> p_srv)
 {
     for (;;)
@@ -75,12 +71,19 @@ void manage_thread(boost::shared_ptr<http_server> p_srv)
         //boost::this_thread::sleep(boost::posix_time::seconds(2));
         {
             boost::unique_lock<boost::mutex> lock(p_srv->conn_notify_mutex); 
-            if(p_srv->conn_notify.timed_wait(lock, boost::posix_time::seconds(30)))
+            if(p_srv->conn_notify.timed_wait(lock, boost::posix_time::seconds(45)))
             {
                 // 遍历，剔除失败的连接
+                http_server::front_conn_type copy_front_conns;
+
+                // 减少front_conns_mutex_的持锁窗口，先拷贝，处理完再反转
+                {
+                    std::lock_guard<std::mutex> lock(p_srv->front_conns_mutex_);
+                    copy_front_conns = p_srv->front_conns_; 
+                }
 
                 std::vector<front_conn_ptr> delete_keys;
-                front_conn_type_l::left_map& view = p_srv->front_conns_.left;
+                http_server::front_conn_type::left_map& view = copy_front_conns.left;
                 ptime now = second_clock::local_time();
 
                 for (auto const_iter = view.begin(); const_iter != view.end(); ++const_iter)
@@ -100,20 +103,25 @@ void manage_thread(boost::shared_ptr<http_server> p_srv)
 
                 if (delete_keys.size())
                 {
+                    assert(p_srv->front_conns_.size() != copy_front_conns.size());
+                    assert(p_srv->front_conns_.size() == copy_front_conns.size() + delete_keys.size());
+
                     for (auto& item: delete_keys)
                         view.erase(item);
+
+                    // 更新p_srv的front_conns_
+                    {
+                        std::lock_guard<std::mutex> lock(p_srv->front_conns_mutex_);
+                        p_srv->front_conns_= copy_front_conns;
+                    }
                 }
 
-                // do delete
-                delete_keys.clear();
-
-                continue;
             }
+
+            continue;
         }
 
         //睡眠了30s，进行检查
-
-
         cout << "<<<<<" << to_simple_string(second_clock::universal_time()) << ">>>>>" <<endl;
         p_srv->show_conns_info(false);
         cout << "====================" << endl;

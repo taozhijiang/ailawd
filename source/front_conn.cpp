@@ -438,6 +438,7 @@ bool front_conn::analyse_handler()
         return false;
     }
 
+    BOOST_LOG_T(error) << "Transform answer from server with size: " << len ;
     fill_for_http(read_buff.data(), len, http_proto::status::ok);
 
     return true;
