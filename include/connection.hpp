@@ -55,7 +55,7 @@ protected:
 
     // 读写的有效负载记录
     size_t r_size_;
-    size_t w_size_;
+    size_t w_size_; size_t w_pos_; //写可能一次不能成功，这里保存已写的位置
     boost::shared_ptr<std::vector<char> > p_buffer_;
     boost::shared_ptr<std::vector<char> > p_write_;
 

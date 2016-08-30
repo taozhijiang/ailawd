@@ -96,9 +96,12 @@ void front_conn::do_write()
         return;
     }
 
+    assert(w_size_);
+    assert(w_pos_ < w_size_);
+
     BOOST_LOG_T(info) << "strand write async_write exactly... in " << boost::this_thread::get_id();
-    async_write(*p_sock_, buffer(*p_write_, w_size_),
-                    boost::asio::transfer_exactly(w_size_),
+    async_write(*p_sock_, buffer(p_write_->data() + w_pos_, w_size_ - w_pos_),
+                    boost::asio::transfer_exactly(w_size_ - w_pos_),
                              strand_.wrap(
                                  boost::bind(&front_conn::write_handler,
                                      shared_from_this(),
@@ -279,9 +282,16 @@ void front_conn::write_handler(const boost::system::error_code& ec, size_t bytes
         //assert(bytes_transferred == w_size_);
         //w_size_ = 0;
 
-        if (bytes_transferred < w_size_) 
-        {
+        w_pos_ += bytes_transferred;
 
+        if (w_pos_ < w_size_) 
+        {
+            BOOST_LOG_T(error) << "ADDITIONAL WRITE: " << w_pos_ << " ~ " << w_size_;
+            do_write();
+        }
+        else
+        {
+            w_pos_ = w_size_ = 0;
         }
     }
     else if (ec != boost::asio::error::operation_aborted)
@@ -469,6 +479,12 @@ bool front_conn::analyse_handler()
 
     string tmp_str = len_str.substr(0, pos);
     size_t real_len = ::atoi(tmp_str.c_str());
+    if (!real_len)
+    {
+        BOOST_LOG_T(error) << " Parse head from server failed!";
+        return false;
+    }
+
     size_t actual_len = len - pos -1;
     while (actual_len < real_len)
     {
