@@ -44,6 +44,8 @@ void front_conn::stop()
     set_stats(conn_pending);
 }
 
+// Wrapping the handler with strand.wrap. This will return a new handler, that will dispatch through the strand.
+// Posting or dispatching directly through the strand.
 
 void front_conn::do_read_head()
 {
@@ -53,12 +55,12 @@ void front_conn::do_read_head()
         return;
     }
 
-    BOOST_LOG_T(info) << "strand read... in " << boost::this_thread::get_id();
+    BOOST_LOG_T(info) << "strand read read_util ... in " << boost::this_thread::get_id();
     async_read_until(*p_sock_, request_,
                              "\r\n\r\n",
                              strand_.wrap(
                                  boost::bind(&front_conn::read_head_handler,
-                                     this,
+                                     shared_from_this(),
                                      boost::asio::placeholders::error,
                                      boost::asio::placeholders::bytes_transferred)));
     return;
@@ -75,12 +77,12 @@ void front_conn::do_read_body()
 
     size_t len = ::atoi(parser_.request_option(http_opts::content_length).c_str());
 
-    BOOST_LOG_T(info) << "strand read... in " << boost::this_thread::get_id();
+    BOOST_LOG_T(info) << "strand read async_read exactly... in " << boost::this_thread::get_id();
     async_read(*p_sock_, buffer(p_buffer_->data() + r_size_, len - r_size_),
-                    boost::asio::transfer_at_least(len - r_size_), 
+                    boost::asio::transfer_exactly(len - r_size_), 
                              strand_.wrap(
                                  boost::bind(&front_conn::read_body_handler,
-                                     this,
+                                     shared_from_this(),
                                      boost::asio::placeholders::error,
                                      boost::asio::placeholders::bytes_transferred)));
     return;
@@ -94,12 +96,12 @@ void front_conn::do_write()
         return;
     }
 
-    BOOST_LOG_T(info) << "strand write... in " << boost::this_thread::get_id();
+    BOOST_LOG_T(info) << "strand write async_write exactly... in " << boost::this_thread::get_id();
     async_write(*p_sock_, buffer(*p_write_, w_size_),
                     boost::asio::transfer_exactly(w_size_),
                              strand_.wrap(
                                  boost::bind(&front_conn::write_handler,
-                                     this,
+                                     shared_from_this(),
                                      boost::asio::placeholders::error,
                                      boost::asio::placeholders::bytes_transferred)));
     return;
@@ -174,6 +176,11 @@ void front_conn::read_head_handler(const boost::system::error_code& ec, size_t b
     else if (ec != boost::asio::error::operation_aborted)
     {
         BOOST_LOG_T(error) << "READ ERROR FOUND!";
+
+        boost::system::error_code ignored_ec;
+        p_sock_->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+        p_sock_->cancel();
+
         notify_conn_error();
         return;
     }
@@ -244,6 +251,11 @@ void front_conn::read_body_handler(const boost::system::error_code& ec, size_t b
     else if (ec != boost::asio::error::operation_aborted)
     {
         BOOST_LOG_T(error) << "READ ERROR FOUND: " << ec;
+
+        boost::system::error_code ignored_ec;
+        p_sock_->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+        p_sock_->cancel();
+
         notify_conn_error();
         return;
     }
@@ -264,12 +276,22 @@ void front_conn::write_handler(const boost::system::error_code& ec, size_t bytes
 {
     if (!ec && bytes_transferred)
     {
-        assert(bytes_transferred == w_size_);
-        w_size_ = 0;
+        //assert(bytes_transferred == w_size_);
+        //w_size_ = 0;
+
+        if (bytes_transferred < w_size_) 
+        {
+
+        }
     }
     else if (ec != boost::asio::error::operation_aborted)
     {
         BOOST_LOG_T(error) << "WRITE ERROR FOUND:" << ec;
+
+        boost::system::error_code ignored_ec;
+        p_sock_->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+        p_sock_->cancel();
+
         notify_conn_error();
     }
 }
@@ -437,9 +459,31 @@ bool front_conn::analyse_handler()
         BOOST_LOG_T(error) << "READ from server failed!";
         return false;
     }
+    string len_str = string(string(read_buff.data(), 20).c_str());
+    size_t pos = len_str.find(':');
+    if(pos == std::string::npos)
+    {
+        BOOST_LOG_T(error) << " Parse head from server failed!";
+        return false;
+    }
 
-    BOOST_LOG_T(error) << "Transform answer from server with size: " << len ;
-    fill_for_http(read_buff.data(), len, http_proto::status::ok);
+    string tmp_str = len_str.substr(0, pos);
+    size_t real_len = ::atoi(tmp_str.c_str());
+    size_t actual_len = len - pos -1;
+    while (actual_len < real_len)
+    {
+        size_t len = sock.read_some(buffer(read_buff.data() + actual_len + pos, read_buff.size() - actual_len), error);
+        if (error)
+        {
+            BOOST_LOG_T(error) << "sub READ from server failed!";
+            return false;
+        }
+        actual_len += len;
+    }
+
+
+    BOOST_LOG_T(error) << "Transform answer from server with size: " << actual_len ;
+    fill_for_http(read_buff.data() + pos + 1, actual_len, http_proto::status::ok);
 
     return true;
 }

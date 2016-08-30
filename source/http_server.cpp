@@ -93,7 +93,7 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
 
 int64_t http_server::request_session_id(front_conn_ptr ptr)
 {
-    std::lock_guard<std::mutex> lock(p_srv->front_conns_mutex_);
+    std::lock_guard<std::mutex> lock(front_conns_mutex_);
 
     auto p = front_conns_.left.find(ptr);
     if (p == front_conns_.left.end())
@@ -105,7 +105,7 @@ int64_t http_server::request_session_id(front_conn_ptr ptr)
 
 bool http_server::set_session_id(front_conn_ptr ptr, uint64_t session_id)
 {
-    std::lock_guard<std::mutex> lock(p_srv->front_conns_mutex_);
+    std::lock_guard<std::mutex> lock(front_conns_mutex_);
 
     auto p = front_conns_.left.find(ptr);
     if (p == front_conns_.left.end())
@@ -120,7 +120,7 @@ front_conn_ptr http_server::request_connection(uint64_t session_id)
     assert(session_id != 0);
     assert((int64_t)session_id != -1);
 
-    std::lock_guard<std::mutex> lock(p_srv->front_conns_mutex_);
+    std::lock_guard<std::mutex> lock(front_conns_mutex_);
 
     // ::right_iterator
     auto p = front_conns_.right.find(session_id);
@@ -139,9 +139,9 @@ void http_server::show_conns_info(bool verbose)
 {
     size_t total_cnt = 0, err_cnt = 0, work_cnt = 0, pend_cnt = 0;
 //    size_t normal_cnt = 0, zero_cnt = 0, negone_cnt = 0;
- 
-    std::lock_guard<std::mutex> lock(p_srv->front_conns_mutex_);
      
+    std::lock_guard<std::mutex> lock(front_conns_mutex_);
+
     front_conn_type::left_map& view = front_conns_.left;
 
     for (auto const_iter = view.begin(); const_iter != view.end(); ++const_iter)
