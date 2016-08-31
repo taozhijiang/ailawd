@@ -90,9 +90,9 @@ void connection::fill_for_http(const char* data, size_t len, const string& statu
     assert(data && len);
 
     string enc = reply::reply_generate(data, len, status);
-    memcpy(p_write_->data(), enc.c_str(), enc.size()+1);
+    memcpy(p_write_->data(), enc.c_str(), enc.size()+1);    // copy '\0' but not transform
 
-    w_size_ = enc.size() + 1;
+    w_size_ = enc.size();
     w_pos_  = 0;
 
     return;
@@ -100,11 +100,10 @@ void connection::fill_for_http(const char* data, size_t len, const string& statu
 
 void connection::fill_for_http(const string& str, const string& status = http_proto::status::ok)
 {
-    string enc =
-        reply::reply_generate(str, status);
-    memcpy(p_write_->data(), enc.c_str(), enc.size()+1);
+    string enc = reply::reply_generate(str, status);
+    memcpy(p_write_->data(), enc.c_str(), enc.size()+1); // copy '\0' but not transform
 
-    w_size_ = enc.size() + 1;
+    w_size_ = enc.size();
     w_pos_  = 0;
 
     return;

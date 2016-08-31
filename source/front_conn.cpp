@@ -118,6 +118,7 @@ void front_conn::read_head_handler(const boost::system::error_code& ec, size_t b
                               boost::asio::buffers_begin(request_.data()) + request_.size());
 
         request_.consume(bytes_transferred); // skip the head
+
         if (parser_.parse_request(head_str.c_str()))
         {
             if (! boost::iequals(parser_.request_option(http_opts::request_method), "POST") )
@@ -133,22 +134,30 @@ void front_conn::read_head_handler(const boost::system::error_code& ec, size_t b
             {
                 size_t len = ::atoi(parser_.request_option(http_opts::content_length).c_str());
                 r_size_ = 0;
+                size_t additional_size = request_.size();
+
+                if (additional_size > p_buffer_->size())
+                {
+                    BOOST_LOG_T(error) << "We can not support request body size: " << len << endl;
+                    goto error_return; 
+                }
 
                 // first async_read_until may read more additional data, if so
                 // then move additional data possible
-                if( request_.size() )
+                if( additional_size )
                 {
-                    r_size_ = request_.size();
                     std::string additional (boost::asio::buffers_begin(request_.data()), 
-                              boost::asio::buffers_begin(request_.data()) + r_size_);
-                    memcpy(p_buffer_->data(), additional.c_str(), r_size_ );
-                    request_.consume(r_size_); // skip the head
+                              boost::asio::buffers_begin(request_.data()) + additional_size);
+
+                    memcpy(p_buffer_->data(), additional.c_str(), additional_size + 1);
+                    request_.consume(additional_size); // skip the head
                 }
 
                 // normally, we will return these 2 cases
-                if (r_size_ < len)
+                if (additional_size < len)
                 {
                     // need to read more data
+                    r_size_ = additional_size;
                     do_read_body();
                     return;
                 }
@@ -156,7 +165,7 @@ void front_conn::read_head_handler(const boost::system::error_code& ec, size_t b
                 {
                     // call the process callback directly
                     boost::system::error_code ec;
-                    read_body_handler(ec, r_size_);
+                    read_body_handler(ec, additional_size);   // already updated r_size_
                     return;
                 }
             }
@@ -190,6 +199,8 @@ void front_conn::read_head_handler(const boost::system::error_code& ec, size_t b
 
 error_return:
     fill_for_http(http_proto::content_error, http_proto::status::internal_server_error); 
+    request_.consume(request_.size());
+    r_size_ = 0;
 
 write_return:
     do_write();
@@ -488,7 +499,8 @@ bool front_conn::analyse_handler()
     size_t actual_len = len - pos -1;
     while (actual_len < real_len)
     {
-        size_t len = sock.read_some(buffer(read_buff.data() + actual_len + pos, read_buff.size() - actual_len), error);
+        size_t len = sock.read_some(buffer(read_buff.data() + actual_len + pos, 
+                                                read_buff.size() - actual_len), error);
         if (error)
         {
             BOOST_LOG_T(error) << "sub READ from server failed!";
@@ -498,8 +510,10 @@ bool front_conn::analyse_handler()
     }
 
 
-    BOOST_LOG_T(error) << "Transform answer from server with size: " << actual_len ;
-    fill_for_http(read_buff.data() + pos + 1, actual_len, http_proto::status::ok);
+    BOOST_LOG_T(error) << "Transform answer from server with size: " << real_len ;
+    string ret_str(read_buff.data() + pos + 1, real_len);
+    ret_str = string(ret_str.c_str());
+    fill_for_http(ret_str, http_proto::status::ok);
 
     return true;
 }
