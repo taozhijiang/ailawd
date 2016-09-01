@@ -20,8 +20,12 @@ connection::connection(boost::shared_ptr<ip::tcp::socket> p_sock):
     r_size_ = 0;
     w_size_ = 0;
     w_pos_  = 0;
-    p_buffer_ = boost::make_shared<std::vector<char> >(32*1024, 0);
-    p_write_  = boost::make_shared<std::vector<char> >(32*1024, 0);
+
+    /**
+     * 可以被后续resize增加
+     */
+    p_buffer_ = boost::make_shared<std::vector<char> >(16*1024, 0);
+    p_write_  = boost::make_shared<std::vector<char> >(16*1024, 0);
 }
 
 void connection::start()
@@ -77,6 +81,9 @@ void connection::do_write()
 void connection::fill_and_send(const char* data, size_t len)
 {
     assert(data && len);
+    if (len > p_write_->size())
+        p_write_->resize(len);
+
     memcpy(p_write_->data(), data, len);
     w_size_ = len;
     w_pos_  = 0;
@@ -90,6 +97,10 @@ void connection::fill_for_http(const char* data, size_t len, const string& statu
     assert(data && len);
 
     string enc = reply::reply_generate(data, len, status);
+
+    if (enc.size() + 1 > p_write_->size())
+        p_write_->resize(enc.size() + 1);
+
     memcpy(p_write_->data(), enc.c_str(), enc.size()+1);    // copy '\0' but not transform
 
     w_size_ = enc.size();
@@ -101,6 +112,10 @@ void connection::fill_for_http(const char* data, size_t len, const string& statu
 void connection::fill_for_http(const string& str, const string& status = http_proto::status::ok)
 {
     string enc = reply::reply_generate(str, status);
+
+    if (enc.size() + 1 > p_write_->size())
+        p_write_->resize(enc.size() + 1);
+
     memcpy(p_write_->data(), enc.c_str(), enc.size()+1); // copy '\0' but not transform
 
     w_size_ = enc.size();
@@ -114,5 +129,6 @@ connection::~connection()
 {
     set_stats(conn_error);
 }
+
 
 }

@@ -1,8 +1,8 @@
 DEBUG ?= 1
 CC = gcc
-CCFLAGS = -g -O2 -std=gnu99 
+CCFLAGS = -g -O0 -std=gnu99 
 CXX = g++
-CXXFLAGS = -g -O2 -std=c++11
+CXXFLAGS = -g -O0 -std=c++11
 PACKAGE = ailawd
 PACKAGE_NAME = $(PACKAGE)
 PACKAGE_STRING = $(PACKAGE_NAME)1.0
