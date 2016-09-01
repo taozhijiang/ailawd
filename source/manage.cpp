@@ -65,6 +65,9 @@ void boost_log_init(const string filename_prefix)
 
 void manage_thread(boost::shared_ptr<http_server> p_srv)
 {
+
+    cerr<< "Manage ThreadID: " << boost::this_thread::get_id() << endl;
+
     for (;;)
     {
         // 等待清理连接，使用条件变量

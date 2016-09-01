@@ -3,7 +3,7 @@
 
 #include "general.hpp"
 #include "http_proto.hpp"
-#include <boost/core/noncopyable.hpp>
+#include <boost/noncopyable.hpp>
 
 namespace airobot {
 
