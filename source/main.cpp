@@ -19,6 +19,9 @@ int main(int argc, char* argv[])
     unsigned short srv_port = 5598;
     const string doc_root = "./";
 
+    // ignore sigpipe
+    assert(::signal(SIGPIPE, SIG_IGN) != SIG_ERR);
+
     airobot::boost_log_init("ailawd_running");
 
     boost::thread_group threads;

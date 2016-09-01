@@ -25,6 +25,9 @@ front_conn::front_conn(boost::shared_ptr<ip::tcp::socket> p_sock,
 {
     // p_buffer_ & p_write_ 
     // already allocated @ connection
+
+    set_tcp_nodelay(true);
+    //assert(set_tcp_keepalive(true));
 }
 
 void front_conn::start()

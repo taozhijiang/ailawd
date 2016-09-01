@@ -124,6 +124,28 @@ void connection::fill_for_http(const string& str, const string& status = http_pr
     return;
 }
 
+bool connection::set_tcp_nodelay(bool set_true)
+{
+    boost::asio::ip::tcp::no_delay nodelay(set_true);
+    p_sock_->set_option(nodelay);
+
+    boost::asio::ip::tcp::no_delay option;
+    p_sock_->get_option(option);
+
+    return (option.value() == set_true);
+}
+
+bool connection::set_tcp_keepalive(bool set_true)
+{
+    boost::asio::socket_base::keep_alive keepalive(set_true);
+    p_sock_->set_option(keepalive);
+
+    boost::asio::socket_base::keep_alive option;
+    p_sock_->get_option(option);
+
+    return (option.value() == set_true);
+}
+
 
 connection::~connection()
 {

@@ -43,6 +43,10 @@ public:
     void fill_for_http(const char* data, size_t len, const string& status);
     void fill_for_http(const string& str, const string& status);
 
+    // some general tiny function
+    bool set_tcp_nodelay(bool set_true);
+    bool set_tcp_keepalive(bool set_true);
+
 protected:
     // 异步IO
     virtual void do_read();
