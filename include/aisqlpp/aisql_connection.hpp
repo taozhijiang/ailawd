@@ -58,9 +58,9 @@ public:
 
 private:
     template <typename T>
-    bool raw_query_value(const size_t idx, T& val);
+    bool raw_query_value(const uint32_t idx, T& val);
     template <typename T, typename ... Args>
-    bool raw_query_value(const size_t idx, T& val, Args& ... rest);
+    bool raw_query_value(const uint32_t idx, T& val, Args& ... rest);
 
 private:
     sql::Driver* driver_;
@@ -83,7 +83,7 @@ private:
 };
 
 template <typename T>
-bool connection::raw_query_value(const size_t idx, T& val)
+bool connection::raw_query_value(const uint32_t idx, T& val)
 {
     if (typeid(T) == typeid(float) ||
         typeid(T) == typeid(double) )
@@ -113,9 +113,9 @@ bool connection::raw_query_value(const size_t idx, T& val)
 // 特例化如果多次包含连接会重复定义，所以要么static、inline，要不
 // 这里extern进行模板声明，然后在cpp文件中进行定义
 template <>
-inline bool connection::raw_query_value(const size_t idx, std::string& val)
+inline bool connection::raw_query_value(const uint32_t idx, std::string& val)
 {
-    val = static_cast<std::string>(result_->getString(idx));
+    val = static_cast<std::string>(result_->getString(static_cast<int32_t>(idx)));
 
     return true;
 }
@@ -198,7 +198,7 @@ bool connection::execute_query_value(const string& sql, T& val)
 // 可变模板参数进行查询
 
 template <typename T, typename ... Args>
-bool connection::raw_query_value(const size_t idx, T& val, Args& ... rest)
+bool connection::raw_query_value(const uint32_t idx, T& val, Args& ... rest)
 {
     raw_query_value(idx, val);
 

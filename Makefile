@@ -11,6 +11,7 @@ SHELL = /bin/bash
 VERSION = 1.0
 SRC_DIRS = ./source
 EXTRAFLAGS = -I./include $(shell mysql_config --cflags --libs) -DBOOST_LOG_DYN_LINK -lboost_system -lboost_thread-mt -lboost_date_time -lboost_regex -lboost_log -lboost_log_setup -I./include/aisqlpp -L./lib -laisqlpp -lmysqlcppconn
+EXTRAFLAGS +=  -Wall -Wextra -Werror -Wconversion -Wno-unused-parameter -Wold-style-cast -Woverloaded-virtual -Wpointer-arith -Wshadow -Wwrite-strings -march=native
 
 OBJDIR = ./obj
 

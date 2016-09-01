@@ -16,7 +16,7 @@ namespace airobot {
             return false;
         }
         
-        std:string header = std::string(ptr);
+        std::string header = std::string(ptr);
         assert(boost::find_first(header, "\r\n\r\n")); //boost algo
         header_opts_.clear();
 

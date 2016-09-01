@@ -18,10 +18,10 @@ namespace http_stat = http_proto::status;
 
 front_conn::front_conn(boost::shared_ptr<ip::tcp::socket> p_sock,
                        http_server& server):
-    strand_(server.io_service_),
     connection(p_sock),
     parser_(),
-    server_(server)
+    server_(server),
+    strand_(server.io_service_)
 {
     // p_buffer_ & p_write_ 
     // already allocated @ connection
@@ -168,7 +168,6 @@ void front_conn::read_head_handler(const boost::system::error_code& ec, size_t b
                 else
                 {
                     // call the process callback directly
-                    boost::system::error_code ec;
                     read_body_handler(ec, additional_size);   // already updated r_size_
                     return;
                 }
@@ -388,7 +387,7 @@ bool front_conn::ailaw_handler()
         for (auto& item: years)
         {
             ptr->create_prep_stmt(sql);
-            ptr->get_prep_stmt()->setInt(1, item);
+            ptr->get_prep_stmt()->setInt(1, static_cast<int>(item));
             ptr->execute_prep_stmt_query();
             values.resize(areas.size());
             std::fill_n(values.begin(), areas.size(), 0);    
@@ -401,7 +400,7 @@ bool front_conn::ailaw_handler()
 
                 auto r1 = std::find(std::begin(areas), std::end(areas), dq);
                 if (r1 != std::end(areas)) {
-                    auto idx = r1 - std::begin(areas);
+                    //auto idx = r1 - std::begin(areas);
                     values[r1 - std::begin(areas)] = cnt;
                 }
                 else {
@@ -509,7 +508,7 @@ bool front_conn::analyse_handler()
     size_t actual_len = len - pos - 1;
     while (actual_len < real_len)
     {
-        size_t len = sock.read_some(buffer(read_buff.data() + actual_len + pos + 1, 
+        len = sock.read_some(buffer(read_buff.data() + actual_len + pos + 1, 
                                                 read_buff.size() - actual_len), error);
         if (error)
         {

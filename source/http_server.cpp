@@ -16,9 +16,9 @@ http_server::http_server(const std::string& address, unsigned short port,
     io_service_(),
     ep_(ip::tcp::endpoint(ip::address::from_string(address), port)),
     acceptor_(io_service_, ep_),
+    concurr_sz_(c_cz*2),
     front_conns_(),
-    front_conns_mutex_(),
-    concurr_sz_(c_cz*2)
+    front_conns_mutex_()
 {
     acceptor_.set_option(ip::tcp::acceptor::reuse_address(true));
     acceptor_.listen();
@@ -82,7 +82,7 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
 
     {
         std::lock_guard<std::mutex> lock(front_conns_mutex_);
-        front_conns_.left.insert(std::make_pair(new_c, (uint64_t)0));
+        front_conns_.left.insert(std::make_pair(new_c, 0ULL));
     }
     new_c->start();
 
@@ -97,7 +97,7 @@ int64_t http_server::request_session_id(front_conn_ptr ptr)
 
     auto p = front_conns_.left.find(ptr);
     if (p == front_conns_.left.end())
-        return (int64_t)-1;
+        return -1LL;
 
     return p->second;
 }
@@ -118,7 +118,7 @@ bool http_server::set_session_id(front_conn_ptr ptr, uint64_t session_id)
 front_conn_ptr http_server::request_connection(uint64_t session_id)
 {
     assert(session_id != 0);
-    assert((int64_t)session_id != -1);
+    assert(static_cast<int64_t>(session_id) != -1);
 
     std::lock_guard<std::mutex> lock(front_conns_mutex_);
 

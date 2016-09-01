@@ -73,14 +73,14 @@ void manage_thread(boost::shared_ptr<http_server> p_srv)
         // 等待清理连接，使用条件变量
         //boost::this_thread::sleep(boost::posix_time::seconds(2));
         {
-            boost::unique_lock<boost::mutex> lock(p_srv->conn_notify_mutex); 
-            if(p_srv->conn_notify.timed_wait(lock, boost::posix_time::seconds(45)))
+            boost::unique_lock<boost::mutex> notify_lock(p_srv->conn_notify_mutex); 
+            if(p_srv->conn_notify.timed_wait(notify_lock, boost::posix_time::seconds(45)))
             {
                 // 遍历，剔除失败的连接
                 // 删除的时候，还是需要持有锁，因为新建连接的时候会创建插入元素，如果
                 // 后面交换的话，会导致数据缺失
                 // 这里算是个性能弱势点
-                std::lock_guard<std::mutex> lock(p_srv->front_conns_mutex_);
+                std::lock_guard<std::mutex> mutex_lock(p_srv->front_conns_mutex_);
 
                 std::vector<front_conn_ptr> delete_keys;
                 http_server::front_conn_type::left_map &view = p_srv->front_conns_.left; 

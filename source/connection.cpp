@@ -13,9 +13,9 @@ using namespace boost::gregorian;
 namespace airobot {
 
 connection::connection(boost::shared_ptr<ip::tcp::socket> p_sock):
-    touch_time_(second_clock::local_time()),
     p_sock_(p_sock),
-    stats_(conn_pending)
+    stats_(conn_pending),
+    touch_time_(second_clock::local_time())
 {
     r_size_ = 0;
     w_size_ = 0;

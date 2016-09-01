@@ -71,6 +71,12 @@
 
 namespace json11 {
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic warning "-Woverloaded-virtual"
+#pragma GCC diagnostic warning "-Wconversion"
+#pragma GCC diagnostic warning "-Wunused-function"
+#endif
+
 enum JsonParse {
     STANDARD, COMMENTS
 };
@@ -241,5 +247,11 @@ protected:
     virtual const Json &operator[](const std::string &key) const;
     virtual ~JsonValue() {}
 };
+
+#if defined(__GNUC__)
+#pragma GCC diagnostic error "-Woverloaded-virtual"
+#pragma GCC diagnostic error "-Wconversion"
+#pragma GCC diagnostic error "-Wunused-function"
+#endif
 
 } // namespace json11

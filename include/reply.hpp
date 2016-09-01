@@ -40,7 +40,7 @@ public:
         headers[1].name = "Date";
         headers[1].value = to_simple_string(second_clock::universal_time());
         headers[2].name = "Content-Length";
-        headers[2].value = std::to_string((long long unsigned)content.size());
+        headers[2].value = std::to_string(static_cast<long long unsigned>(content.size()));
         headers[3].name = "Content-Type";
         headers[3].value = "text/html";
         headers[4].name = "Connection";
@@ -49,7 +49,7 @@ public:
         headers[5].value = "*";
 
         string str = stat_str;
-        for (int i=0; i< headers.size(); ++i)
+        for (size_t i=0; i< headers.size(); ++i)
         {
             str += headers[i].name;
             str += header_name_value_separator_str;
@@ -82,7 +82,7 @@ public:
         headers[5].value = "*";
 
         string str = stat_str;
-        for (int i=0; i< headers.size(); ++i)
+        for (size_t i=0; i< headers.size(); ++i)
         {
             str += headers[i].name;
             str += header_name_value_separator_str;

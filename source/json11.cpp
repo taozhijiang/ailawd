@@ -40,6 +40,11 @@ using std::move;
 /* * * * * * * * * * * * * * * * * * * *
  * Serialization
  */
+#if defined(__GNUC__)
+#pragma GCC diagnostic warning "-Woverloaded-virtual"
+#pragma GCC diagnostic warning "-Wconversion"
+#pragma GCC diagnostic warning "-Wunused-function"
+#endif
 
 static void dump(std::nullptr_t, string &out) {
     out += "null";
@@ -55,7 +60,7 @@ static void dump(double value, string &out) {
     }
 }
 
-static void dump(int value, string &out) {
+static inline void dump(int value, string &out) {
     out += std::to_string(value);
 }
 
@@ -811,5 +816,11 @@ bool Json::has_shape(const shape & types, string & err) const {
 
     return true;
 }
+
+#if defined(__GNUC__)
+#pragma GCC diagnostic error "-Woverloaded-virtual"
+#pragma GCC diagnostic error "-Wconversion"
+#pragma GCC diagnostic error "-Wunused-function"
+#endif
 
 } // namespace json11
