@@ -5,6 +5,7 @@
 #include <boost/bind.hpp>
 #include <set>
 #include <mutex>
+#include <atomic>
 
 #include "front_conn.hpp"
 
@@ -56,6 +57,7 @@ private:
 
     io_service io_service_;
 
+    // 侦听地址信息
     ip::tcp::endpoint ep_;
     ip::tcp::acceptor acceptor_;
 
@@ -69,8 +71,26 @@ private:
 
     friend void manage_thread(const objects* daemons);
 
-    front_conn_type front_conns_;
     std::mutex      front_conns_mutex_;
+    front_conn_type front_conns_;
+
+    // 记录front_conns_中的连接数目，便于控制最大服务量
+    // 下面这些数据结构同样被front_conns_mutex_保护
+    unsigned long long max_serve_conns_cnt_;
+    std::atomic_ullong current_conns_cnt_;  
+
+    // 使用limit获得当前进程最大句柄的硬限制
+    bool set_max_serve_conns_cnt(unsigned long long cnt);
+
+    // 每次需要删除的conn都放到这个set中，避免manage线程
+    // 每次持锁遍历整个连接容器，提高效率。 使用set是为了防止多次插入
+    std::set<front_conn_ptr> pending_to_remove_;
+    void push_to_remove(front_conn_ptr ptr)
+    {
+        assert( pending_to_remove_.find(ptr) == pending_to_remove_.end());
+        pending_to_remove_.insert(ptr);
+    }
+
     //std::set<connection_ptr> connections_;
     //std::map<unsigned long long session_id, connection_ptr> connections_;
 

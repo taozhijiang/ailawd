@@ -328,6 +328,7 @@ void front_conn::notify_conn_error()
         r_size_ = 0;
         w_size_ = 0;
         set_stats(conn_error);
+        server_.push_to_remove(shared_from_this());
     }
     server_.conn_notify.notify_one();
 }

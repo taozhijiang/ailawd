@@ -85,35 +85,24 @@ void manage_thread(const objects* daemons)
                 // 这里算是个性能弱势点
                 std::lock_guard<std::mutex> mutex_lock(p_srv->front_conns_mutex_);
 
-                std::vector<front_conn_ptr> delete_keys;
-                http_server::front_conn_type::left_map &view = p_srv->front_conns_.left; 
-                ptime now = second_clock::local_time();
+                assert(p_srv->pending_to_remove_.size());
+                http_server::front_conn_type::left_map &view = p_srv->front_conns_.left;
 
-                for (auto const_iter = view.begin(); const_iter != view.end(); ++const_iter)
+                BOOST_LOG_T(info) << "Original connection: " << p_srv->front_conns_.size()
+                                    << ", trimed connection: " << p_srv->pending_to_remove_.size();
+
+                for (auto &item: p_srv->pending_to_remove_) 
                 {
-                    if (const_iter->first->get_stats() == conn_error)
-                    {
-                        BOOST_LOG_T(debug) << "ERROR: " << const_iter->second;
-                        delete_keys.push_back(const_iter->first);
-                    }
-
-                    if (const_iter->first->touch_time_ < (now - seconds(FRONT_EXPIRED_INTERVEL)))
-                    {
-                        BOOST_LOG_T(debug) << "EXPIRED: " << const_iter->second;
-                        delete_keys.push_back(const_iter->first);
-                    }
+                    assert(view.find(item) != view.end());
+                    view.erase(item);
+                    p_srv->current_conns_cnt_ --;
                 }
 
-                if (delete_keys.size())
-                {
-                    BOOST_LOG_T(info) << "Original connection: " << p_srv->front_conns_.size();
+                p_srv->pending_to_remove_.clear(); // do really empty
 
-                    for (auto& item: delete_keys)
-                        view.erase(item);
+                assert(p_srv->front_conns_.size() == p_srv->current_conns_cnt_);
 
-                    BOOST_LOG_T(info) << "Trimed connection: " << delete_keys.size() 
-                                << ", still alive: " << p_srv->front_conns_.size();
-                }
+                BOOST_LOG_T(info) << " Connection still alive: " << p_srv->current_conns_cnt_;
 
                 continue; // skip show bellow if just wakend up!
             }
