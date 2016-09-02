@@ -66,6 +66,7 @@ protected:
     enum connection_stats stats_;
 
 public:
+    void touch_sock_time() { touch_time_ = second_clock::local_time();}
     ptime touch_time_;
 
 };

@@ -18,7 +18,7 @@ class co_worker: public boost::noncopyable
 public:
     explicit co_worker(const objects* daemons);
 
-    void run() { io_service_.run(); }
+    void run();
 
     void signal_handler(const boost::system::error_code& error, 
                         int signal_number);
@@ -26,13 +26,18 @@ public:
     void timed_cancel_socket(const boost::system::error_code& ec,
                                     boost::asio::deadline_timer* t, ip::tcp::socket* sock);
 
+    void timing_wheel_check(const boost::system::error_code& ec);
+
     io_service& get_io_service() { return  io_service_; }
 
 
 private:
     io_service io_service_;
     signal_set signal_;
+    boost::asio::deadline_timer* timing_wheel_timer_;
+
     const objects* daemons_;
+    http_server* http_;
 };
 
 }

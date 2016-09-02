@@ -59,6 +59,7 @@ void front_conn::do_read_head()
         return;
     }
 
+    touch_sock_time();
     BOOST_LOG_T(info) << "strand read read_util ... in " << boost::this_thread::get_id();
     async_read_until(*p_sock_, request_,
                              "\r\n\r\n",
@@ -79,6 +80,7 @@ void front_conn::do_read_body()
         return;
     }
 
+    touch_sock_time();
     size_t len = ::atoi(parser_.request_option(http_opts::content_length).c_str());
 
     BOOST_LOG_T(info) << "strand read async_read exactly... in " << boost::this_thread::get_id();
@@ -100,6 +102,7 @@ void front_conn::do_write()
         return;
     }
 
+    touch_sock_time();
     assert(w_size_);
     assert(w_pos_ < w_size_);
 

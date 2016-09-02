@@ -23,6 +23,7 @@ http_server::http_server(const objects* daemons,
     max_serve_conns_cnt_(1024),
     current_conns_cnt_(0),
     pending_to_remove_(),
+    timing_wheel_(10),  //决定了检查的颗粒度
     daemons_(daemons)
 {
     acceptor_.set_option(ip::tcp::acceptor::reuse_address(true));
@@ -35,8 +36,6 @@ http_server::http_server(const objects* daemons,
     size_t cnt = ptr->execute_query_count(str);
     BOOST_LOG_T(info) << "TOTAL cases in database: " << cnt << endl;
     sql_conns_->free_conn(ptr);
-
-    set_max_serve_conns_cnt(100);
 
     do_accept();
 }
@@ -84,6 +83,18 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
 
     BOOST_LOG_T(debug) << "Client Info: " << p_sock->remote_endpoint().address() << "/" <<
         p_sock->remote_endpoint().port();
+
+    if (current_conns_cnt_ >= max_serve_conns_cnt_) 
+    {
+        BOOST_LOG_T(error) << boost::format("We only support %llu, current %llu") % max_serve_conns_cnt_
+            % current_conns_cnt_ << endl;
+        p_sock->shutdown(boost::asio::ip::tcp::socket::shutdown_both);
+        p_sock->close();
+
+        // 再次启动接收异步请求
+        do_accept();
+        return;
+    }
 
     front_conn_ptr new_c = boost::make_shared<front_conn>(p_sock, *this);
 

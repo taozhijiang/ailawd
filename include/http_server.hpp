@@ -16,6 +16,8 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
 
+#include <boost/circular_buffer.hpp>
+
 #include "aisql_conns_manage.hpp"
 #include "aisql_connection.hpp"
 
@@ -79,8 +81,6 @@ private:
     unsigned long long max_serve_conns_cnt_;
     std::atomic_ullong current_conns_cnt_;  
 
-    // 使用limit获得当前进程最大句柄的硬限制
-    bool set_max_serve_conns_cnt(unsigned long long cnt);
 
     // 每次需要删除的conn都放到这个set中，避免manage线程
     // 每次持锁遍历整个连接容器，提高效率。 使用set是为了防止多次插入
@@ -91,12 +91,35 @@ private:
         pending_to_remove_.insert(ptr);
     }
 
+    size_t conn_expired_time_;  // in second
+    boost::circular_buffer<std::set<front_conn_weak>> timing_wheel_; 
+
     //std::set<connection_ptr> connections_;
     //std::map<unsigned long long session_id, connection_ptr> connections_;
 
     boost::shared_ptr<aisqlpp::conns_manage> sql_conns_;
 
     const objects* daemons_;   
+
+public:
+
+    // 使用limit获得当前进程最大句柄的硬限制
+    bool set_max_serve_conns_cnt(unsigned long long cnt);
+
+    // must called before co_worker thread start
+    void set_conn_expired_time(size_t new_time) { 
+        if ( new_time > timing_wheel_.capacity())
+        {
+            conn_expired_time_ = new_time;
+        }
+    }
+
+    size_t get_conn_check_spare(void) 
+    {
+        assert(conn_expired_time_/timing_wheel_.capacity());
+        return (conn_expired_time_/timing_wheel_.capacity()); 
+    }
+
 };
 
 } // END NAMESPACE

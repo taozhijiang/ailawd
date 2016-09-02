@@ -39,6 +39,10 @@ int main(int argc, char* argv[])
 
         all_daemons.http_server_ = new airobot::http_server(&all_daemons, 
                                                             ip_addr, srv_port, doc_root, concurr_num);
+        // 在这里先设置，确保能先于co_worker线程启动前生效
+        all_daemons.http_server_->set_max_serve_conns_cnt(100);
+        all_daemons.http_server_->set_conn_expired_time(20);
+
         all_daemons.co_worker_   = new airobot::co_worker(&all_daemons);
 
         threads.create_thread(

@@ -19,6 +19,7 @@ namespace airobot {
 class http_server;
 class front_conn;
 typedef boost::shared_ptr<front_conn> front_conn_ptr;
+typedef boost::weak_ptr<front_conn>   front_conn_weak;
 
 class front_conn : public connection, public client_ops, 
                    public boost::enable_shared_from_this<front_conn>
