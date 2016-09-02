@@ -328,6 +328,7 @@ void front_conn::notify_conn_error()
 {
     {
         boost::lock_guard<boost::mutex> lock(server_.conn_notify_mutex);
+        std::lock_guard<std::mutex> mutex_lock(server_.front_conns_mutex_);
         r_size_ = 0;
         w_size_ = 0;
         set_stats(conn_error);

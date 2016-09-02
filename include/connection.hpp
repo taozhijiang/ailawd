@@ -45,6 +45,8 @@ public:
     bool set_tcp_nodelay(bool set_true);
     bool set_tcp_keepalive(bool set_true);
 
+    void sock_shutdown(ip::tcp::socket::shutdown_type s_type) { p_sock_->shutdown(s_type); }
+
 protected:
     // 异步IO
     virtual void do_read();

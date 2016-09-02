@@ -46,6 +46,12 @@ namespace http_stats = http_proto::status;
 
 void http_server::run()
 {
+    for (size_t i=0; i < timing_wheel_.capacity(); ++i)
+    {
+        std::set<front_conn_weak> empty;
+        timing_wheel_.push_back(empty);
+    }
+
     // Create a pool of threads to run all of the io_services.
     std::vector<boost::shared_ptr<boost::thread> > threads_pool;
     for (std::size_t i = 0; i < concurr_sz_; ++i) 
@@ -102,6 +108,9 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
         std::lock_guard<std::mutex> lock(front_conns_mutex_);
         front_conns_.left.insert(std::make_pair(new_c, 0ULL));
         current_conns_cnt_ ++;
+
+        // 登记弱引用，无锁结构
+        timing_wheel_.back().insert(front_conn_weak(new_c));
     }
     new_c->start();
 
