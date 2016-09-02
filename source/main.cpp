@@ -8,11 +8,13 @@
 
 namespace airobot {
 
-void manage_thread(boost::shared_ptr<http_server> p_srv);
+void manage_thread(const objects* daemons);
 void boost_log_init(const string filename);
 
 }
 
+// global variable
+airobot::objects all_daemons = {nullptr, nullptr};
 
 int main(int argc, char* argv[])
 {
@@ -35,24 +37,23 @@ int main(int argc, char* argv[])
         BOOST_LOG_T(info) << "Server Runing At:" << ip_addr << ":" << srv_port;
         BOOST_LOG_T(info) << "DocumentRoot:" << doc_root;
 
-        boost::shared_ptr<airobot::http_server> p_srv =
-            boost::make_shared<airobot::http_server>(ip_addr, srv_port, doc_root, concurr_num);
-        boost::shared_ptr<airobot::co_worker>   p_co_worker =
-            boost::make_shared<airobot::co_worker>();
+        all_daemons.http_server_ = new airobot::http_server(&all_daemons, 
+                                                            ip_addr, srv_port, doc_root, concurr_num);
+        all_daemons.co_worker_   = new airobot::co_worker(&all_daemons);
 
         threads.create_thread(
-            [&p_srv]{
+            []{
             cerr<< "Main HTTP ThreadID: " << boost::this_thread::get_id() << endl;
-            p_srv->run();
+            all_daemons.http_server_->run();
         });
 
         threads.create_thread(
-            [&p_co_worker]{
+            []{
             cerr<< "CO WORKER ThreadID: " << boost::this_thread::get_id() << endl;
-            p_co_worker->run();
+            all_daemons.co_worker_->run();
         });
 
-        threads.create_thread(boost::bind(airobot::manage_thread, p_srv));
+        threads.create_thread(boost::bind(airobot::manage_thread, &all_daemons));
 
         threads.join_all();
     }

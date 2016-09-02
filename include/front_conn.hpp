@@ -6,6 +6,8 @@
 #include "http_parser.hpp"
 #include "connection.hpp"
 
+#include "client_ops.hpp"
+
 #include <boost/date_time/posix_time/posix_time.hpp>
 using namespace boost::posix_time;
 using namespace boost::gregorian;
@@ -18,7 +20,8 @@ class http_server;
 class front_conn;
 typedef boost::shared_ptr<front_conn> front_conn_ptr;
 
-class front_conn : public connection, public boost::enable_shared_from_this<front_conn>
+class front_conn : public connection, public client_ops, 
+                   public boost::enable_shared_from_this<front_conn>
 {
 
 public:

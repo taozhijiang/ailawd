@@ -11,20 +11,22 @@ namespace airobot {
 boost::condition_variable_any http_server::conn_notify;
 boost::mutex http_server::conn_notify_mutex;
 
-http_server::http_server(const std::string& address, unsigned short port,
-                    const std::string& doc_root, size_t c_cz) :
+http_server::http_server(const objects* daemons, 
+                         const std::string& address, unsigned short port,
+                         const std::string& doc_root, size_t c_cz) :
     io_service_(),
     ep_(ip::tcp::endpoint(ip::address::from_string(address), port)),
     acceptor_(io_service_, ep_),
     concurr_sz_(c_cz*2),
     front_conns_(),
-    front_conns_mutex_()
+    front_conns_mutex_(),
+    daemons_(daemons)
 {
     acceptor_.set_option(ip::tcp::acceptor::reuse_address(true));
     acceptor_.listen();
 
     // 数据库连接池初始化部分
-    sql_conns_ =  boost::make_shared<aisqlpp::conns_manage>(c_cz+2, "192.168.1.233", "v5kf", "v5kf", "v5_law");
+    sql_conns_ =  boost::make_shared<aisqlpp::conns_manage>(c_cz+2, "127.0.0.1", "v5kf", "v5kf", "v5_law");
     string str = "SELECT count(uuid) FROM v5_law_text;";
     boost::shared_ptr<aisqlpp::connection> ptr = sql_conns_->request_conn(); 
     size_t cnt = ptr->execute_query_count(str);

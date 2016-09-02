@@ -2,6 +2,7 @@
 #include "reply.hpp"
 #include "http_server.hpp"
 #include "http_proto.hpp"
+#include "co_worker.hpp"
 #include "json11.hpp"
 
 #include <boost/date_time/posix_time/posix_time.hpp>
@@ -320,7 +321,6 @@ void front_conn::write_handler(const boost::system::error_code& ec, size_t bytes
     }
 }
 
-
 void front_conn::notify_conn_error()
 {
     {
@@ -459,15 +459,26 @@ bool front_conn::analyse_handler()
     // 和后端服务器同步连接和同步请求
     // 但是阻塞读取没有timed_out选项。。。
     BOOST_LOG_T(info) << "Request to host:" << win_server::ip << ":" << win_server::port;
+
     ip::tcp::socket sock(p_sock_->get_io_service());
     ip::tcp::endpoint ep(ip::address::from_string(win_server::ip),
                             win_server::port);
     boost::system::error_code error;
 
-    sock.connect(ep, error);
-    if (error)
+    // already blocked connect
+    //sock.connect(ep, error);
+    //if (error)
+    //{
+    //    BOOST_LOG_T(error) << "Connect to server failed!";
+    //    return false;
+    //}
+
+    class co_worker *p_worker = server_.get_co_worker();
+    sync_timed_connect(p_worker, ep , sock, 1000, error);
+
+    if (error) 
     {
-        BOOST_LOG_T(error) << "Connect to server failed!";
+        BOOST_LOG_T(error) << "Connect to server failed(1000ms)!";
         return false;
     }
 
@@ -477,50 +488,19 @@ bool front_conn::analyse_handler()
     sock.write_some(buffer(body));
 
     std::vector<char> read_buff(32*1024, 0);
-    size_t len = sock.read_some(buffer(read_buff), error);
-    if (error)
+    size_t read_len = sync_read_from(sock, read_buff, error);
+
+    //size_t read_len = sync_timed_read_from(p_worker, 
+    //                                       sock, read_buff, 7000, error);
+
+    if (read_len == 0)
     {
-        BOOST_LOG_T(error) << "READ from server failed!";
-        return false;
-    }
-    string len_str = string(string(read_buff.data(), 20).c_str());
-    size_t pos = len_str.find(':');
-    if(pos == std::string::npos)
-    {
-        BOOST_LOG_T(error) << " Parse head from server failed!";
+        BOOST_LOG_T(info) << "Read operation returned 0!";
         return false;
     }
 
-    string tmp_str = len_str.substr(0, pos);
-    size_t real_len = ::atoi(tmp_str.c_str());
-    if (!real_len)
-    {
-        BOOST_LOG_T(error) << " Parse head from server failed!";
-        return false;
-    }
-
-    // relarge the receive buffer
-    if (real_len + pos + 1 > read_buff.size())
-    {
-        BOOST_LOG_T(info) << " Relarge the receive buff to size: " << (real_len + pos + 1 + 256);
-        read_buff.resize(real_len + pos + 1 + 256);
-    }
-    size_t actual_len = len - pos - 1;
-    while (actual_len < real_len)
-    {
-        len = sock.read_some(buffer(read_buff.data() + actual_len + pos + 1, 
-                                                read_buff.size() - actual_len), error);
-        if (error)
-        {
-            BOOST_LOG_T(error) << "sub READ from server failed!";
-            return false;
-        }
-        actual_len += len;
-    }
-
-
-    BOOST_LOG_T(error) << "Transform answer from server with size: " << real_len ;
-    string ret_str(read_buff.data() + pos + 1, real_len);
+    BOOST_LOG_T(error) << "Transform answer from server with size: " << read_len ;
+    string ret_str(read_buff.data(), read_len);
     ret_str = string(ret_str.c_str());
     fill_for_http(ret_str, http_proto::status::ok);
 

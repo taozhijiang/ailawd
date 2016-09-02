@@ -19,9 +19,7 @@ enum connection_stats {
 };
 
 class http_server;
-class backend_server;
 extern void show_front_conns_info(bool verbose);
-extern void show_backend_conns_info(bool verbose);
 
 class connection
 {
