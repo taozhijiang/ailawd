@@ -73,42 +73,46 @@ void manage_thread(const objects* daemons)
 
     for (;;)
     {
-        // 等待清理连接，使用条件变量
-        //boost::this_thread::sleep(boost::posix_time::seconds(2));
+        boost::unique_lock<boost::mutex> notify_lock(p_srv->conn_notify_mutex); 
+        if(p_srv->conn_notify.timed_wait(notify_lock, boost::posix_time::seconds(45)))
         {
-            boost::unique_lock<boost::mutex> notify_lock(p_srv->conn_notify_mutex); 
-            if(p_srv->conn_notify.timed_wait(notify_lock, boost::posix_time::seconds(45)))
+            assert(notify_lock.owns_lock());
+            if(p_srv->pending_to_remove_.empty())   
+                continue;
+
+            // 遍历，剔除失败的连接
+            // 删除的时候，还是需要持有锁，因为新建连接的时候会创建插入元素，如果
+            // 后面交换的话，会导致数据缺失
+            // 这里算是个性能弱势点
+            boost::lock_guard<boost::mutex> mutex_lock(p_srv->front_conns_mutex_);
+
+            http_server::front_conn_type::left_map &view = p_srv->front_conns_.left;
+
+            BOOST_LOG_T(info) << "Original connection: " << p_srv->front_conns_.size()
+                                << ", trimed connection: " << p_srv->pending_to_remove_.size();
+
+            // pending_to_remove可能在conn_stat以及co_worker timing
+            // 两个地方同时被登记删除
+            for (auto &item: p_srv->pending_to_remove_) 
             {
-                // 遍历，剔除失败的连接
-                // 删除的时候，还是需要持有锁，因为新建连接的时候会创建插入元素，如果
-                // 后面交换的话，会导致数据缺失
-                // 这里算是个性能弱势点
-                std::lock_guard<std::mutex> mutex_lock(p_srv->front_conns_mutex_);
-
-                assert(p_srv->pending_to_remove_.size());
-                http_server::front_conn_type::left_map &view = p_srv->front_conns_.left;
-
-                BOOST_LOG_T(info) << "Original connection: " << p_srv->front_conns_.size()
-                                    << ", trimed connection: " << p_srv->pending_to_remove_.size();
-
-                for (auto &item: p_srv->pending_to_remove_) 
+                if(view.find(item) != view.end())
                 {
-                    assert(view.find(item) != view.end());
                     view.erase(item);
                     p_srv->current_conns_cnt_ --;
                 }
-
-                p_srv->pending_to_remove_.clear(); // do really empty
-
-                assert(p_srv->front_conns_.size() == p_srv->current_conns_cnt_);
-
-                BOOST_LOG_T(info) << " Connection still alive: " << p_srv->current_conns_cnt_;
-
-                continue; // skip show bellow if just wakend up!
             }
+
+            p_srv->pending_to_remove_.clear(); // do really empty
+            assert(p_srv->front_conns_.size() == p_srv->current_conns_cnt_);
+
+            BOOST_LOG_T(info) << " Connection still alive: " << p_srv->current_conns_cnt_;
+
+            continue; // skip show bellow if just wakend up!
         }
 
         //睡眠了30s，进行检查
+
+
         cout << "<<<<<" << to_simple_string(second_clock::universal_time()) << ">>>>>" <<endl;
         p_srv->show_conns_info(false);
         cout << "====================" << endl;

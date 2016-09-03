@@ -60,6 +60,7 @@ void co_worker::timing_wheel_check(const boost::system::error_code& ec)
 
     BOOST_LOG_T(info) << "timing_wheel_check ...";
 
+    bool notify_flag = false;
     auto front_modi = http_->timing_wheel_[0]; //拷贝出front，而front()只是引用
     for (auto& item: http_->timing_wheel_[0])
     {
@@ -72,14 +73,13 @@ void co_worker::timing_wheel_check(const boost::system::error_code& ec)
                 front_modi.erase(item);
 
                 {
-                    std::lock_guard<std::mutex> mutex_lock(http_->front_conns_mutex_);
-
                     // 促使socket的读写出错，然后对端被动关闭socket
                     // 当然这里是清理垃圾连接的最后战场，如果对端恶意不关闭
                     // 连接，那么这里必须强制保证连接会被清理掉
                     conn->sock_shutdown(ip::tcp::socket::shutdown_both);
                     conn->set_stats(conn_error);
                     http_->push_to_remove(conn);
+                    notify_flag = true;
                 }
             }
         }
@@ -90,9 +90,13 @@ void co_worker::timing_wheel_check(const boost::system::error_code& ec)
         }
     }
 
+    if (notify_flag)
+        http_->conn_notify.notify_one();
+
     // push，将修改更新后的结果添加到尾部
     {
-        std::lock_guard<std::mutex> lock(http_->front_conns_mutex_);
+        // 防止push的时候有插入操作
+        boost::lock_guard<boost::mutex> lock(http_->front_conns_mutex_);
         http_->timing_wheel_.push_back(front_modi);
     }
 

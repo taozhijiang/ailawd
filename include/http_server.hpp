@@ -4,7 +4,6 @@
 #include "general.hpp"
 #include <boost/bind.hpp>
 #include <set>
-#include <mutex>
 #include <atomic>
 
 #include "front_conn.hpp"
@@ -52,6 +51,7 @@ public:
 
     static boost::condition_variable_any conn_notify;
     static boost::mutex conn_notify_mutex;
+    // 等待和保护的条件是http_server::pending_to_remove_
 
 private:
     friend class front_conn;
@@ -72,7 +72,7 @@ private:
 
     friend void manage_thread(const objects* daemons);
 
-    std::mutex      front_conns_mutex_;
+    boost::mutex    front_conns_mutex_;
     front_conn_type front_conns_;
 
     // 记录front_conns_中的连接数目，便于控制最大服务量
@@ -88,6 +88,7 @@ private:
     {
         // 因为可能出错，超时都导致添加，这里不需要assert
         //assert( pending_to_remove_.find(ptr) == pending_to_remove_.end());
+        boost::lock_guard<boost::mutex> lock(conn_notify_mutex); 
         pending_to_remove_.insert(ptr);
     }
 

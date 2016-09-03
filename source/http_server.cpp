@@ -105,13 +105,12 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
     front_conn_ptr new_c = boost::make_shared<front_conn>(p_sock, *this);
 
     {
-        std::lock_guard<std::mutex> lock(front_conns_mutex_);
+        boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
         front_conns_.left.insert(std::make_pair(new_c, 0ULL));
         current_conns_cnt_ ++;
-
-        // 登记弱引用，无锁结构
         timing_wheel_.back().insert(front_conn_weak(new_c));
     }
+
     new_c->start();
 
     // 再次启动接收异步请求
@@ -121,7 +120,7 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
 
 int64_t http_server::request_session_id(front_conn_ptr ptr)
 {
-    std::lock_guard<std::mutex> lock(front_conns_mutex_);
+    boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
 
     auto p = front_conns_.left.find(ptr);
     if (p == front_conns_.left.end())
@@ -133,7 +132,7 @@ int64_t http_server::request_session_id(front_conn_ptr ptr)
 
 bool http_server::set_session_id(front_conn_ptr ptr, uint64_t session_id)
 {
-    std::lock_guard<std::mutex> lock(front_conns_mutex_);
+    boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
 
     auto p = front_conns_.left.find(ptr);
     if (p == front_conns_.left.end())
@@ -148,7 +147,7 @@ front_conn_ptr http_server::request_connection(uint64_t session_id)
     assert(session_id != 0);
     assert(static_cast<int64_t>(session_id) != -1);
 
-    std::lock_guard<std::mutex> lock(front_conns_mutex_);
+    boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
 
     // ::right_iterator
     auto p = front_conns_.right.find(session_id);
@@ -168,7 +167,7 @@ void http_server::show_conns_info(bool verbose)
     size_t total_cnt = 0, err_cnt = 0, work_cnt = 0, pend_cnt = 0;
 //    size_t normal_cnt = 0, zero_cnt = 0, negone_cnt = 0;
      
-    std::lock_guard<std::mutex> lock(front_conns_mutex_);
+    boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
 
     front_conn_type::left_map& view = front_conns_.left;
 
