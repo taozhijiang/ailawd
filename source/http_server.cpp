@@ -24,6 +24,7 @@ http_server::http_server(const objects* daemons,
     current_conns_cnt_(0),
     pending_to_remove_(),
     timing_wheel_(10),  //决定了检查的颗粒度
+    cached_conns_(),
     daemons_(daemons)
 {
     acceptor_.set_option(ip::tcp::acceptor::reuse_address(true));
@@ -102,10 +103,25 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
         return;
     }
 
-    front_conn_ptr new_c = boost::make_shared<front_conn>(p_sock, *this);
+    front_conn_ptr new_c; 
 
     {
         boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
+
+        if (!cached_conns_.empty())
+        {
+            new_c = *(cached_conns_.begin());
+            cached_conns_.erase(cached_conns_.begin());
+            assert(new_c.use_count() == 1);
+            new_c->conn_reset_network(p_sock);
+
+            BOOST_LOG_T(info) << "Using cached connection, remaining: [[" << cached_conns_.size() <<"]]" ;
+        }
+        else
+        {
+            new_c = boost::make_shared<front_conn>(p_sock, *this);
+        }
+
         front_conns_.left.insert(std::make_pair(new_c, 0ULL));
         current_conns_cnt_ ++;
         timing_wheel_.back().insert(front_conn_weak(new_c));

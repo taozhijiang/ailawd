@@ -20,9 +20,10 @@ namespace http_stat = http_proto::status;
 front_conn::front_conn(boost::shared_ptr<ip::tcp::socket> p_sock,
                        http_server& server):
     connection(p_sock),
+    request_(),
     parser_(),
     server_(server),
-    strand_(server.io_service_)
+    strand_(boost::make_shared<io_service::strand>(server.io_service_))
 {
     // p_buffer_ & p_write_ 
     // already allocated @ connection
@@ -63,7 +64,7 @@ void front_conn::do_read_head()
     BOOST_LOG_T(info) << "strand read read_util ... in " << boost::this_thread::get_id();
     async_read_until(*p_sock_, request_,
                              "\r\n\r\n",
-                             strand_.wrap(
+                             strand_->wrap(
                                  boost::bind(&front_conn::read_head_handler,
                                      shared_from_this(),
                                      boost::asio::placeholders::error,
@@ -86,7 +87,7 @@ void front_conn::do_read_body()
     BOOST_LOG_T(info) << "strand read async_read exactly... in " << boost::this_thread::get_id();
     async_read(*p_sock_, buffer(p_buffer_->data() + r_size_, len - r_size_),
                     boost::asio::transfer_exactly(len - r_size_), 
-                             strand_.wrap(
+                             strand_->wrap(
                                  boost::bind(&front_conn::read_body_handler,
                                      shared_from_this(),
                                      boost::asio::placeholders::error,
@@ -109,7 +110,7 @@ void front_conn::do_write()
     BOOST_LOG_T(info) << "strand write async_write exactly... in " << boost::this_thread::get_id();
     async_write(*p_sock_, buffer(p_write_->data() + w_pos_, w_size_ - w_pos_),
                     boost::asio::transfer_exactly(w_size_ - w_pos_),
-                             strand_.wrap(
+                              strand_->wrap(
                                  boost::bind(&front_conn::write_handler,
                                      shared_from_this(),
                                      boost::asio::placeholders::error,
@@ -317,7 +318,7 @@ void front_conn::write_handler(const boost::system::error_code& ec, size_t bytes
         BOOST_LOG_T(error) << "WRITE ERROR FOUND:" << ec;
 
         boost::system::error_code ignored_ec;
-        p_sock_->shutdown(boost::asio::ip::tcp::socket::shutdown_send, ignored_ec);
+        p_sock_->shutdown(ip::tcp::socket::shutdown_send, ignored_ec);
         p_sock_->cancel();
 
         notify_conn_error();
@@ -334,6 +335,37 @@ void front_conn::notify_conn_error()
     server_.conn_notify.notify_one();
 }
 
+void front_conn::conn_wash_white()
+{
+    assert( get_stats() != conn_working );
+
+    r_size_ = w_size_ = w_pos_ = 0;
+    p_buffer_->resize(16*1024);
+    p_write_->resize(16*1024);
+
+    //request_.
+
+    stats_ = conn_pending;
+
+    p_sock_.reset();
+    strand_.reset();
+
+    return;
+}
+
+void front_conn::conn_reset_network(boost::shared_ptr<ip::tcp::socket> p_sock)
+{
+    p_sock_ = p_sock;
+    strand_ = boost::make_shared<io_service::strand>(server_.io_service_);
+
+    // 暂时没有想到更好的重新初始化streambuf的方法，如果后面是在不行的话
+    // 就用shared_ptr每次重新申请
+    if (request_.size())
+        request_.consume(request_.size());
+    
+    touch_sock_time();
+    return;
+}
 
 // 添加各种URI的handler
 bool front_conn::ailaw_handler()

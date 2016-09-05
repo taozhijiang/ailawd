@@ -103,6 +103,9 @@ private:
     //std::set<connection_ptr> connections_;
     //std::map<unsigned long long session_id, connection_ptr> connections_;
 
+    // 缓存空闲的front_conn对象，最大大小为max_serve_conns_cnt_的30%
+    std::vector<front_conn_ptr> cached_conns_;
+
     boost::shared_ptr<aisqlpp::conns_manage> sql_conns_;
 
     const objects* daemons_;   

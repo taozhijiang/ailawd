@@ -56,7 +56,7 @@ void connection::do_read()
 #if 0
     // 线程池多线程访问io_service模型
     p_sock_->async_read_some(buffer(*p_buffer_),
-                             strand_.wrap(
+                             strand_->wrap(
                                 boost::bind(&front_conn::read_handler,
                                   this,
                                   boost::asio::placeholders::error,

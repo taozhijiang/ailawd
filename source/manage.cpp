@@ -93,12 +93,29 @@ void manage_thread(const objects* daemons)
 
             // pending_to_remove可能在conn_stat以及co_worker timing
             // 两个地方同时被登记删除
+            // 只有在最后一次删除的时候，才能进行洗洗白操作
             for (auto &item: p_srv->pending_to_remove_) 
             {
                 if(view.find(item) != view.end())
                 {
+                    // view, pending_to_remove_ 两份
+                    if (item.use_count() > 2)
+                    {
+                        BOOST_LOG_T(info) << "SKIP with use count: " << item.use_count();
+                        continue;
+                    }
+
                     view.erase(item);
                     p_srv->current_conns_cnt_ --;
+
+                    // 无限制缓存连接数没有意义
+#pragma GCC diagnostic warning "-Wconversion"
+                    if (p_srv->cached_conns_.size() < static_cast<size_t>(p_srv->max_serve_conns_cnt_ * 0.3) )
+                    {
+                        item->conn_wash_white();
+                        p_srv->cached_conns_.push_back(item);
+                    }
+#pragma GCC diagnostic error "-Wconversion"
                 }
             }
 

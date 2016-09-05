@@ -66,6 +66,16 @@ void co_worker::timing_wheel_check(const boost::system::error_code& ec)
     {
         if (front_conn_ptr conn = item.lock() )
         {
+            // 缓存的对象
+            if (conn->get_stats() == conn_pending) 
+            {
+                assert( std::find(http_->cached_conns_.begin(), http_->cached_conns_.end(), conn) != 
+                        http_->cached_conns_.end() );
+                front_modi.erase(item);
+
+                continue;
+            }
+
             if (conn->touch_time_ + boost::posix_time::seconds(
                                     http_->get_conn_expired_time() - http_->get_conn_check_spare()) 
                 <= boost::posix_time::second_clock::local_time()) 
