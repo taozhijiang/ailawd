@@ -19,6 +19,7 @@ using namespace boost::gregorian;
 #include <boost/log/attributes/named_scope.hpp>
 #include <boost/log/support/date_time.hpp>
 
+#include <execinfo.h>
 
 /**
  * 包含管理维护线程的相关工作
@@ -26,6 +27,61 @@ using namespace boost::gregorian;
 
 namespace airobot {
 
+
+void backtrace_info(int sig, siginfo_t *info, void *f)
+{
+    int j, nptrs;
+#define BT_SIZE 100
+    char **strings;
+    void *buffer[BT_SIZE];
+
+    fprintf(stderr,       "\nSignal [%d] received.\n", sig);
+    BOOST_LOG_T(fatal) << "\nSignal [" << sig << "] received.\n";
+    fprintf(stderr,       "======== Stack trace ========");
+    BOOST_LOG_T(fatal) << "======== Stack trace ========\n";
+
+    nptrs = ::backtrace(buffer, BT_SIZE);
+    BOOST_LOG_T(fatal) << "backtrace() returned %d addresses";
+    fprintf(stderr,       "backtrace() returned %d addresses\n", nptrs);
+
+    strings = ::backtrace_symbols(buffer, nptrs);
+    if (strings == NULL)
+    {
+        perror("backtrace_symbols");
+        BOOST_LOG_T(fatal) << "backtrace_symbols";
+        exit(EXIT_FAILURE);
+    }
+
+    for (j = 0; j < nptrs; j++)
+    {
+        fprintf(stderr, "%s\n", strings[j]);
+        BOOST_LOG_T(fatal) << strings[j];
+    }
+
+    free(strings);
+
+    fprintf(stderr,       "Stack Done!\n");
+    BOOST_LOG_T(fatal) << "Stack Done!";
+
+    ::kill(getpid(), sig);
+    ::abort();
+
+#undef BT_SIZE    
+}
+
+void backtrace_init()
+{
+    struct sigaction act;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags     = SA_NODEFER | SA_ONSTACK | SA_RESETHAND | SA_SIGINFO;
+    act.sa_sigaction = backtrace_info;
+    sigaction(SIGABRT, &act, NULL);
+    sigaction(SIGBUS,  &act, NULL);
+    sigaction(SIGFPE,  &act, NULL);
+    sigaction(SIGSEGV, &act, NULL);
+
+    return;
+}
 
 namespace blog_sink = boost::log::sinks;
 namespace blog_expr = boost::log::expressions;

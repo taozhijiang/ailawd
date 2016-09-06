@@ -11,6 +11,8 @@ namespace airobot {
 void manage_thread(const objects* daemons);
 void boost_log_init(const string filename);
 
+void backtrace_init();
+
 }
 
 // global variable
@@ -26,6 +28,7 @@ int main(int argc, char* argv[])
     assert(::signal(SIGPIPE, SIG_IGN) != SIG_ERR);
 
     airobot::boost_log_init("ailawd_running");
+    airobot::backtrace_init();
 
     boost::thread_group threads;
 
