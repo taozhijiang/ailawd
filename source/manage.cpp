@@ -101,7 +101,9 @@ void manage_thread(const objects* daemons)
                     // view, pending_to_remove_ 两份
                     if (item.use_count() > 2)
                     {
+                        // 这里需要重新加入time_wheel列表中，否则就永远漏检了
                         BOOST_LOG_T(info) << "SKIP with use count: " << item.use_count();
+                        p_srv->timing_wheel_.back().insert(front_conn_weak(item));
                         continue;
                     }
 
