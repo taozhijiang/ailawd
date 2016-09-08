@@ -1,0 +1,13 @@
+[Unit]
+Description=Ailawd Daemon Service
+After=network.target
+
+[Service]
+Type=simple
+User=v5kf
+ExecStart=/home/v5kf/nginx/ailawd/Debug/ailawd &
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

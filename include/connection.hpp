@@ -45,7 +45,10 @@ public:
     bool set_tcp_nodelay(bool set_true);
     bool set_tcp_keepalive(bool set_true);
 
-    void sock_shutdown(ip::tcp::socket::shutdown_type s_type) { p_sock_->shutdown(s_type); }
+    void sock_shutdown(ip::tcp::socket::shutdown_type s_type) { 
+        boost::system::error_code ignore_ec;
+        p_sock_->shutdown(s_type, ignore_ec); 
+    }
 
 protected:
     // 异步IO

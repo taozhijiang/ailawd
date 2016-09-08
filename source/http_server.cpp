@@ -95,7 +95,8 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
     {
         BOOST_LOG_T(error) << boost::format("We only support %llu, current %llu") % max_serve_conns_cnt_
             % current_conns_cnt_ << endl;
-        p_sock->shutdown(boost::asio::ip::tcp::socket::shutdown_both);
+        boost::system::error_code ignore_ec;
+        p_sock->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignore_ec);
         p_sock->close();
 
         // 再次启动接收异步请求
