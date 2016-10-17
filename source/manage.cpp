@@ -95,8 +95,6 @@ void manage_thread(const objects* daemons)
             // 这里算是个性能弱势点
             boost::lock_guard<boost::mutex> mutex_lock(p_srv->front_conns_mutex_);
 
-            http_server::front_conn_type::left_map &view = p_srv->front_conns_.left;
-
             BOOST_LOG_T(info) << "Original connection: " << p_srv->front_conns_.size()
                                 << ", trimed connection: " << p_srv->pending_to_remove_.size();
 
@@ -106,9 +104,9 @@ void manage_thread(const objects* daemons)
             for (auto it=p_srv->pending_to_remove_.cbegin(); it!=p_srv->pending_to_remove_.cend(); it++)
             {
                 front_conn_ptr item = *it;
-                if(view.find(item) != view.end())
+                if(p_srv->front_conns_.find(item) != p_srv->front_conns_.end())
                 {
-                    // view, pending_to_remove_ 两份 + 此处的item局部变量一份
+                    // unordered_map, pending_to_remove_ 两份 + 此处的item局部变量一份
                     if (item.use_count() > 3)
                     {
                         // 这里需要重新加入time_wheel列表中，否则就永远漏检了
@@ -117,7 +115,7 @@ void manage_thread(const objects* daemons)
                         continue;
                     }
 
-                    view.erase(item);
+                    p_srv->front_conns_.erase(item);
                     __sync_fetch_and_sub(&p_srv->current_conns_cnt_, 1);
 
                     // 无限制缓存连接数没有意义

@@ -39,6 +39,7 @@ void front_conn::start()
      * 版本的do_read
      */
     set_stats(conn_working);
+    r_size_ = w_size_ = w_pos_ = 0;
     do_read_head();
 }
 
@@ -213,7 +214,9 @@ write_return:
     do_write();
 
     // if error, we will not read anymore
-    // notify_conn_error();
+    // 此处关闭连接，消息会不会确保能写回到浏览器去???
+    // notify_conn_error(); 算了，还是重新发起一个读，正常情况客户端应该会主动断开
+    start();
 
     return;
 }
@@ -269,8 +272,9 @@ error_return:
 
 write_return:
     do_write();
-
-    do_read_head();
+    
+    // 同上
+    start();
 
     return;
 }
@@ -355,7 +359,8 @@ bool front_conn::analyse_handler()
     string body = string(p_buffer_->data(), r_size_);
     body = string(body.c_str());
 
-    if (!body.find("access_id") || ! body.find("11488058246"))
+    if (body.find("access_id") == std::string::npos ||
+        body.find("11488058246") == std::string::npos )
     {
         BOOST_LOG_T(error) << "Wrong access_id detected! " << body;
         return false;

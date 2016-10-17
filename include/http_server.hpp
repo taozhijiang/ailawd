@@ -8,9 +8,8 @@
 #include "front_conn.hpp"
 #include "co_worker.hpp"
 
-#include <boost/bimap.hpp>
-#include <boost/bimap/set_of.hpp>
-#include <boost/bimap/multiset_of.hpp>
+//不用bimap了
+#include <boost/unordered_map.hpp>
 
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/condition_variable.hpp>
@@ -62,13 +61,10 @@ private:
     void do_accept();
     void accept_handler(const boost::system::error_code& ec, socket_ptr ptr);
 
-    typedef boost::bimap< boost::bimaps::set_of<front_conn_ptr>,
-                          boost::bimaps::multiset_of<uint64_t> > front_conn_type;
-
     friend void manage_thread(const objects* daemons);
 
     boost::mutex    front_conns_mutex_;
-    front_conn_type front_conns_;
+    boost::unordered_map<front_conn_ptr, size_t> front_conns_;
 
     // 记录front_conns_中的连接数目，便于控制最大服务量
     // 下面这些数据结构同样被front_conns_mutex_保护

@@ -115,7 +115,7 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
             new_c = boost::make_shared<front_conn>(p_sock, *this);
         }
 
-        front_conns_.left.insert(std::make_pair(new_c, 0ULL));
+        front_conns_.emplace(std::make_pair(new_c, 0ULL));
         __sync_fetch_and_add(&current_conns_cnt_, 1);
         timing_wheel_.back().insert(front_conn_weak(new_c));
     }
@@ -131,8 +131,8 @@ int64_t http_server::request_session_id(front_conn_ptr ptr)
 {
     boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
 
-    auto p = front_conns_.left.find(ptr);
-    if (p == front_conns_.left.end())
+    auto p = front_conns_.find(ptr);
+    if (p == front_conns_.end())
         return -1LL;
 
     return p->second;
@@ -141,33 +141,16 @@ int64_t http_server::request_session_id(front_conn_ptr ptr)
 
 bool http_server::set_session_id(front_conn_ptr ptr, uint64_t session_id)
 {
-    boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
+    ::abort(); // not implemented
 
-    auto p = front_conns_.left.find(ptr);
-    if (p == front_conns_.left.end())
-        return false;
-
-    front_conns_.left.replace_data(p, session_id);
-    return true;
+    return false;
 }
 
 front_conn_ptr http_server::request_connection(uint64_t session_id)
 {
-    assert(session_id != 0);
-    assert(static_cast<int64_t>(session_id) != -1);
+    ::abort(); // not implemented
 
-    boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
-
-    // ::right_iterator
-    auto p = front_conns_.right.find(session_id);
-
-    if (p == front_conns_.right.end())
-        return boost::shared_ptr<front_conn>();  // so called nullptr
-
-    assert(front_conns_.right.count(session_id) == 1);
-    //cout << typeid(p).name() << endl;
-
-    return p->second;
+    return front_conns_.end()->first; 
 }
 
 
@@ -177,10 +160,8 @@ void http_server::show_conns_info(bool verbose)
 //    size_t normal_cnt = 0, zero_cnt = 0, negone_cnt = 0;
 
     boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
-
-    front_conn_type::left_map& view = front_conns_.left;
-
-    for (auto const_iter = view.begin(); const_iter != view.end(); ++const_iter)
+    for (auto const_iter = front_conns_.cbegin(); 
+            const_iter != front_conns_.cend(); ++const_iter)
     {
         if (verbose)
             cout << boost::format("front_conn[%d], touched:%s, status: ")
