@@ -108,8 +108,8 @@ void manage_thread(const objects* daemons)
                 front_conn_ptr item = *it;
                 if(view.find(item) != view.end())
                 {
-                    // view, pending_to_remove_ 两份
-                    if (item.use_count() > 2)
+                    // view, pending_to_remove_ 两份 + 此处的item局部变量一份
+                    if (item.use_count() > 3)
                     {
                         // 这里需要重新加入time_wheel列表中，否则就永远漏检了
                         BOOST_LOG_T(info) << "SKIP with use count: " << item.use_count();
