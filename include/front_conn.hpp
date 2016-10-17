@@ -21,7 +21,7 @@ class front_conn;
 typedef boost::shared_ptr<front_conn> front_conn_ptr;
 typedef boost::weak_ptr<front_conn>   front_conn_weak;
 
-class front_conn : public connection, public client_ops, 
+class front_conn : public connection, public client_ops,
                    public boost::enable_shared_from_this<front_conn>
 {
 
@@ -32,19 +32,19 @@ public:
     /// Construct a connection with the given socket.
     front_conn(boost::shared_ptr<ip::tcp::socket> p_sock, http_server& server);
 
-    virtual void start() override;
-    virtual void stop() override;
-    virtual void do_read() override  { /* Not Permit */ abort(); }
-    virtual void do_write() override;
+    virtual void start();
+    virtual void stop();
+    virtual void do_read()  { /* Not Permit */ abort(); }
+    virtual void do_write();
 
     void do_read_head();
     void do_read_body();
 
-    void read_head_handler(const boost::system::error_code &ec, std::size_t bytes_transferred); 
-    void read_body_handler(const boost::system::error_code &ec, std::size_t bytes_transferred); 
-    virtual void read_handler(const boost::system::error_code& ec, std::size_t bytes_transferred) override 
+    void read_head_handler(const boost::system::error_code &ec, std::size_t bytes_transferred);
+    void read_body_handler(const boost::system::error_code &ec, std::size_t bytes_transferred);
+    virtual void read_handler(const boost::system::error_code& ec, std::size_t bytes_transferred)
     { /* Not Permit */ abort(); }
-    virtual void write_handler(const boost::system::error_code &ec, std::size_t bytes_transferred) override; 
+    virtual void write_handler(const boost::system::error_code &ec, std::size_t bytes_transferred);
 
     virtual ~front_conn() { BOOST_LOG_T(debug) << "FRONT SOCKET RELEASED!!!"; }
 

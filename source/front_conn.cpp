@@ -3,7 +3,6 @@
 #include "http_server.hpp"
 #include "http_proto.hpp"
 #include "co_worker.hpp"
-#include "json11.hpp"
 
 #include <boost/date_time/posix_time/posix_time.hpp>
 using namespace boost::posix_time;
@@ -25,7 +24,7 @@ front_conn::front_conn(boost::shared_ptr<ip::tcp::socket> p_sock,
     server_(server),
     strand_(boost::make_shared<io_service::strand>(server.io_service_))
 {
-    // p_buffer_ & p_write_ 
+    // p_buffer_ & p_write_
     // already allocated @ connection
 
     set_tcp_nodelay(true);
@@ -86,7 +85,7 @@ void front_conn::do_read_body()
 
     BOOST_LOG_T(info) << "strand read async_read exactly... in " << boost::this_thread::get_id();
     async_read(*p_sock_, buffer(p_buffer_->data() + r_size_, len - r_size_),
-                    boost::asio::transfer_exactly(len - r_size_), 
+                    boost::asio::transfer_at_least(len - r_size_),
                              strand_->wrap(
                                  boost::bind(&front_conn::read_body_handler,
                                      shared_from_this(),
@@ -109,7 +108,7 @@ void front_conn::do_write()
 
     BOOST_LOG_T(info) << "strand write async_write exactly... in " << boost::this_thread::get_id();
     async_write(*p_sock_, buffer(p_write_->data() + w_pos_, w_size_ - w_pos_),
-                    boost::asio::transfer_exactly(w_size_ - w_pos_),
+                    boost::asio::transfer_at_least(w_size_ - w_pos_),
                               strand_->wrap(
                                  boost::bind(&front_conn::write_handler,
                                      shared_from_this(),
@@ -122,7 +121,7 @@ void front_conn::read_head_handler(const boost::system::error_code& ec, size_t b
 {
     if (!ec && bytes_transferred)
     {
-        std::string head_str (boost::asio::buffers_begin(request_.data()), 
+        std::string head_str (boost::asio::buffers_begin(request_.data()),
                               boost::asio::buffers_begin(request_.data()) + request_.size());
 
         request_.consume(bytes_transferred); // skip the head
@@ -155,7 +154,7 @@ void front_conn::read_head_handler(const boost::system::error_code& ec, size_t b
                 // then move additional data possible
                 if( additional_size )
                 {
-                    std::string additional (boost::asio::buffers_begin(request_.data()), 
+                    std::string additional (boost::asio::buffers_begin(request_.data()),
                               boost::asio::buffers_begin(request_.data()) + additional_size);
 
                     memcpy(p_buffer_->data(), additional.c_str(), additional_size + 1);
@@ -180,7 +179,7 @@ void front_conn::read_head_handler(const boost::system::error_code& ec, size_t b
             else
             {
                 BOOST_LOG_T(error) << "Invalid request uri: " << parser_.request_option(http_opts::request_uri);
-                fill_for_http(http_proto::content_not_found, http_proto::status::not_found); 
+                fill_for_http(http_proto::content_not_found, http_proto::status::not_found);
                 goto write_return;
             }
 
@@ -206,7 +205,7 @@ void front_conn::read_head_handler(const boost::system::error_code& ec, size_t b
     }
 
 error_return:
-    fill_for_http(http_proto::content_error, http_proto::status::internal_server_error); 
+    fill_for_http(http_proto::content_error, http_proto::status::internal_server_error);
     request_.consume(request_.size());
     r_size_ = 0;
 
@@ -223,7 +222,7 @@ write_return:
 void front_conn::read_body_handler(const boost::system::error_code& ec, size_t bytes_transferred)
 {
     if (!ec && bytes_transferred)
-    {   
+    {
 
         size_t len = ::atoi(parser_.request_option(http_opts::content_length).c_str());
         r_size_ += bytes_transferred;
@@ -235,26 +234,9 @@ void front_conn::read_body_handler(const boost::system::error_code& ec, size_t b
             return;
         }
 
-        if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/ailaw") )
-        {
-            if( ailaw_handler() == false )
-            {
-                 BOOST_LOG_T(error) << "process error: " << parser_.request_option(http_opts::request_uri);
-                 goto error_return;
-            }
-
-        }
-        else if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/analyse") )
+        if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/analyse") )
         {
             if( analyse_handler() == false )
-            {
-                 BOOST_LOG_T(error) << "process error: " << parser_.request_option(http_opts::request_uri);
-                 goto error_return;
-            }
-        }
-        else if ( boost::iequals(parser_.request_option(http_opts::request_uri), "/item") )
-        {
-            if( item_handler() == false )
             {
                  BOOST_LOG_T(error) << "process error: " << parser_.request_option(http_opts::request_uri);
                  goto error_return;
@@ -263,7 +245,7 @@ void front_conn::read_body_handler(const boost::system::error_code& ec, size_t b
         else
         {
             BOOST_LOG_T(error) << "Invalid request uri: " << parser_.request_option(http_opts::request_uri);
-            fill_for_http(http_proto::content_not_found, http_proto::status::not_found); 
+            fill_for_http(http_proto::content_not_found, http_proto::status::not_found);
             goto write_return;
         }
 
@@ -283,7 +265,7 @@ void front_conn::read_body_handler(const boost::system::error_code& ec, size_t b
     }
 
 error_return:
-    fill_for_http(http_proto::content_error, http_proto::status::internal_server_error); 
+    fill_for_http(http_proto::content_error, http_proto::status::internal_server_error);
 
 write_return:
     do_write();
@@ -303,7 +285,7 @@ void front_conn::write_handler(const boost::system::error_code& ec, size_t bytes
 
         w_pos_ += bytes_transferred;
 
-        if (w_pos_ < w_size_) 
+        if (w_pos_ < w_size_)
         {
             BOOST_LOG_T(error) << "ADDITIONAL WRITE: " << w_pos_ << " ~ " << w_size_;
             do_write();
@@ -362,131 +344,20 @@ void front_conn::conn_reset_network(boost::shared_ptr<ip::tcp::socket> p_sock)
     // 就用shared_ptr每次重新申请
     if (request_.size())
         request_.consume(request_.size());
-    
+
     touch_sock_time();
     return;
 }
 
 // 添加各种URI的handler
-bool front_conn::ailaw_handler()
-{
-    string body = string(p_buffer_->data(), r_size_);
-    body = string(body.c_str()); // I do not know why, but can fix lots of parse error
-    string json_err;
-    auto json_parsed = json11::Json::parse(body, json_err);
-
-    // TO DO
-    if (!json_err.empty())
-    {
-        BOOST_LOG_T(error) << "JSON parse error: " << json_err;
-        BOOST_LOG_T(error) << "<<<" << body << ">>>";
-        return false;
-    }
-
-    if (!boost::equals(json_parsed["access_id"].string_value(), "11488058246"))
-    {
-        BOOST_LOG_T(error) << "Wrong access_id: " << json_parsed["access_id"].string_value();
-        return false;
-    }
-
-    // 数据库查询，返回总体概况信息
-    string sql("SELECT DISTINCT(YEAR(CPRQ)) FROM v5_law_meta;");
-    string sql2("SELECT DISTINCT(DQ_S) FROM v5_law_info;");
-    boost::shared_ptr<aisqlpp::connection> ptr = server_.get_sql_manager().request_conn(); 
-    std::vector<uint64_t> years;
-    std::vector<string>   areas;
-
-    if( (ptr->execute_query_column(sql, years) == false) ||
-        (ptr->execute_query_column(sql2, areas) == false) ) 
-    {
-        server_.get_sql_manager().free_conn(ptr);
-        return false;
-    }
-
-    string year_str = json11::Json(years).dump();
-    string area_str = json11::Json(areas).dump();
-    string d_values_str;
-
-    sql = R"(SELECT DQ_S, count(DQ_S) FROM v5_law_info INNER JOIN v5_law_meta
-                ON v5_law_info.WS_ID = v5_law_meta.WS_ID
-                WHERE YEAR(v5_law_meta.CPRQ)=?
-                GROUP BY(DQ_S);)" ;
-
-    std::vector<uint64_t> values;
-    std::vector<uint64_t> d_values; //总共的结果
-
-    sql::ResultSet* result;
-
-    try {
-        for (auto& item: years)
-        {
-            ptr->create_prep_stmt(sql);
-            ptr->get_prep_stmt()->setInt(1, static_cast<int>(item));
-            ptr->execute_prep_stmt_query();
-            values.resize(areas.size());
-            std::fill_n(values.begin(), areas.size(), 0);    
-
-            result = ptr->get_result_set();
-            while (result->next()) 
-            {
-                string dq = result->getString(1);
-                uint64_t cnt = result->getInt(2);
-
-                auto r1 = std::find(std::begin(areas), std::end(areas), dq);
-                if (r1 != std::end(areas)) {
-                    //auto idx = r1 - std::begin(areas);
-                    values[r1 - std::begin(areas)] = cnt;
-                }
-                else {
-                    abort();
-                }
-            }
-
-            for (auto& i: values)
-                d_values.push_back(i);
-        }
-    }
-    catch (sql::SQLException &e) 
-    {
-        BOOST_LOG_T(error) << " STMT: " << sql << endl;
-        BOOST_LOG_T(error) << "# ERR: " << e.what() << endl;
-        BOOST_LOG_T(error) << " (MySQL error code: " << e.getErrorCode() << endl;
-        BOOST_LOG_T(error) << ", SQLState: " << e.getSQLState() << " )" << endl;
-
-        server_.get_sql_manager().free_conn(ptr);
-        return false;
-    }
-
-    
-    d_values_str = json11::Json(d_values).dump();
-    string ret_str = " { \"d\": [ " + year_str + ", " + area_str + " ], ";
-    ret_str += " \"v\": " + d_values_str;
-    ret_str += " } ";
-
-    fill_for_http(ret_str, http_proto::status::ok);
-
-    server_.get_sql_manager().free_conn(ptr);
-    return true;
-}
-
 bool front_conn::analyse_handler()
 {
     string body = string(p_buffer_->data(), r_size_);
     body = string(body.c_str());
-    string json_err;
-    auto json_parsed = json11::Json::parse(body, json_err);
 
-    // TO DO
-    if (!json_err.empty())
+    if (!body.find("access_id") || ! body.find("11488058246"))
     {
-        BOOST_LOG_T(error) << "JSON parse error: " << json_err;
-        BOOST_LOG_T(error) << "<<<" << body << ">>>";
-        return false;
-    }
-
-    if (!boost::equals(json_parsed["access_id"].string_value(), "11488058246"))
-    {
-        BOOST_LOG_T(error) << "Wrong access_id: " << json_parsed["access_id"].string_value();
+        BOOST_LOG_T(error) << "Wrong access_id detected! " << body;
         return false;
     }
 
@@ -510,7 +381,7 @@ bool front_conn::analyse_handler()
     class co_worker *p_worker = server_.get_co_worker();
     sync_timed_connect(p_worker, ep , sock, 1000, error);
 
-    if (error) 
+    if (error)
     {
         BOOST_LOG_T(error) << "Connect to server failed(1000ms)!";
         return false;
@@ -524,7 +395,7 @@ bool front_conn::analyse_handler()
     std::vector<char> read_buff(32*1024, 0);
     size_t read_len = sync_read_from(sock, read_buff, error);
 
-    //size_t read_len = sync_timed_read_from(p_worker, 
+    //size_t read_len = sync_timed_read_from(p_worker,
     //                                       sock, read_buff, 7000, error);
 
     if (read_len == 0)
@@ -541,61 +412,5 @@ bool front_conn::analyse_handler()
     return true;
 }
 
-bool front_conn::item_handler()
-{
-    string body = string(p_buffer_->data(), r_size_);
-    body = string(body.c_str());
-    string json_err;
-    auto json_parsed = json11::Json::parse(body, json_err);
-
-    // TO DO
-    if (!json_err.empty())
-    {
-        BOOST_LOG_T(error) << "JSON parse error: " << json_err;
-        BOOST_LOG_T(error) << "<<<" << body << ">>>";
-        return false;
-    }
-
-    if (!boost::equals(json_parsed["access_id"].string_value(), "11488058246"))
-    {
-        BOOST_LOG_T(error) << "Wrong access_id: " << json_parsed["access_id"].string_value();
-        return false;
-    }
-
-    if (json_parsed["ws_uuid"].string_value().empty())
-    {
-        BOOST_LOG_T(error) << "Empty ws_uuid";
-        return false;
-    }
-
-    //
-    std::vector<string> d_title = { "文书ID", "地区", "原告", "原告代理人", "被告", "被告代理人",
-        "审判长", "审判员", "陪审员", "书记员", "裁判日期", "案件名称", "审判程序", "案号", "法院名称"};
-    string sql = "SELECT WS_ID, DQ, YG, YGDLR, BG, BGDLR, SPZ, SPY, PSY, SJY, CPRQ, AJMC, SPCX, AH, FYMC "
-                 "FROM v5_law_meta WHERE WS_ID='" + json_parsed["ws_uuid"].string_value() + "';" ;
-    std::vector<string> d_value; 
-    d_value.resize(d_title.size());
-
-    boost::shared_ptr<aisqlpp::connection> ptr = server_.get_sql_manager().request_conn(); 
-    if (ptr->execute_query_values(sql, 
-                                  d_value[0], d_value[1], d_value[2], d_value[3], d_value[4], d_value[5],
-                                  d_value[6], d_value[7], d_value[8], d_value[9], d_value[10], d_value[11],
-                                  d_value[12], d_value[13], d_value[14]) == false) 
-    {
-        server_.get_sql_manager().free_conn(ptr);
-        return false;
-    }
-
-    string d_title_str = json11::Json(d_title).dump();
-    string d_value_str = json11::Json(d_value).dump();
-
-    string ret_str = " { \"d\": " + d_title_str + ", ";
-    ret_str += " \"v\": " + d_value_str;
-    ret_str += " } ";
-
-    fill_for_http(ret_str, http_proto::status::ok);
-
-    return true;
-}
 
 }

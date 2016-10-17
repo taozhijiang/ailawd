@@ -2,7 +2,7 @@ DEBUG ?= 1
 CC = gcc
 CCFLAGS = -g -O0 -std=gnu99 
 CXX = g++
-CXXFLAGS = -g -O0 -std=c++11
+CXXFLAGS = -g -O0 -std=c++0x
 PACKAGE = ailawd
 PACKAGE_NAME = $(PACKAGE)
 PACKAGE_STRING = $(PACKAGE_NAME)1.0
@@ -10,11 +10,9 @@ PACKAGE_VERSION = 1.0
 SHELL = /bin/bash
 VERSION = 1.0
 SRC_DIRS = ./source
-EXTRAFLAGS =  -I/home/user/Dropbox/ReadTheCode/boost/installdir/include -L/home/user/Dropbox/ReadTheCode/boost/installdir/lib
-EXTRAFLAGS += -DBOOST_LOG_DYN_LINK 
-EXTRAFLAGS += -lboost_system -lboost_thread -lboost_date_time -lboost_regex -lboost_log -lboost_log_setup 
-EXTRAFLAGS += -I./include $(shell mysql_config --cflags --libs) -I./include/aisqlpp -L./lib -laisqlpp -lmysqlcppconn
-EXTRAFLAGS += -Wall -Wextra -march=native
+EXTRAFLAGS = -lboost_system -lboost_thread-mt -lboost_date_time -lboost_regex 
+EXTRAFLAGS += -I./include
+EXTRAFLAGS +=  -Wall -Wextra -Werror -Wno-unused-parameter -Wold-style-cast -Woverloaded-virtual -Wpointer-arith -Wshadow -Wwrite-strings -march=native
 
 OBJDIR = ./obj
 
@@ -33,13 +31,13 @@ TARGET_DIR=Release
 endif
 
 $(PACKAGE) : $(objs) 
-	@test -d $(OBJDIR) || mkdir -p $(OBJDIR)
-	@test -d $(TARGET_DIR) || mkdir -p $(TARGET_DIR)
+	@test -d $(OBJDIR) || mkdir $(OBJDIR)
+	@test -d $(TARGET_DIR) || mkdir $(TARGET_DIR)
 	$(CXX) -c $(CXXFLAGS) $(EXTRAFLAGS) $(SRC_DIRS)/main.cpp -o $(OBJDIR)/main.o
 	$(CXX) $(OBJDIR)/main.o $^ $(CXXFLAGS) $(EXTRAFLAGS) -o $(TARGET_DIR)/$(PACKAGE)
 
 $(objs) : $(OBJDIR)/%.o: %.cpp
-	@test -d $(OBJDIR) || mkdir -p $(OBJDIR)
+	@test -d $(OBJDIR) || mkdir $(OBJDIR)
 	$(CXX) -MMD -c $(CXXFLAGS) $(EXTRAFLAGS) $< -o $@ 
 
 #check header for obj reconstruction

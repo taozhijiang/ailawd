@@ -73,7 +73,7 @@ public:
         headers[1].name = "Date";
         headers[1].value = to_simple_string(second_clock::universal_time());
         headers[2].name = "Content-Length";
-        headers[2].value = std::to_string(len);
+        headers[2].value = std::to_string(static_cast<long long int>(len));
         headers[3].name = "Content-Type";
         headers[3].value = "text/html";
         headers[4].name = "Connection";

@@ -6,38 +6,26 @@ namespace airobot {
 
 co_worker::co_worker(const objects* daemons):
     io_service_(),
-    signal_(io_service_, /*SIGINT,*/ SIGTERM),
-    timing_wheel_timer_(nullptr),
+    timing_wheel_timer_(0),
     daemons_(daemons),
-    http_(nullptr)
+    http_(0)
 {
-    signal_.async_wait(boost::bind(&co_worker::signal_handler, this, _1, _2));
-
     return;
 }
 
-void co_worker::run() 
-{ 
+void co_worker::run()
+{
     http_ = daemons_->http_server_;
     assert(http_);
 
-    timing_wheel_timer_ = new deadline_timer (io_service_, 
-                                              boost::posix_time::seconds(http_->get_conn_check_spare())); 
+    timing_wheel_timer_ = new deadline_timer (io_service_,
+                                              boost::posix_time::seconds(http_->get_conn_check_spare()));
     assert(timing_wheel_timer_);
 
     timing_wheel_timer_->async_wait(boost::bind(&co_worker::timing_wheel_check, this,
                                                boost::asio::placeholders::error));
 
-    io_service_.run(); 
-}
-
-void co_worker::signal_handler(const boost::system::error_code& error, 
-                               int sig_number)
-{
-    BOOST_LOG_T(info) << "SIGNAL:" << sig_number << "RECEIVED!" << endl;
-
-    // re-listen again!
-    signal_.async_wait(boost::bind(&co_worker::signal_handler, this, _1, _2));
+    io_service_.run();
 }
 
 void co_worker::timed_cancel_socket(const boost::system::error_code& ec,
@@ -64,14 +52,15 @@ void co_worker::timing_wheel_check(const boost::system::error_code& ec)
     bool notify_flag = false;
 
     auto front_modi = http_->timing_wheel_[0]; //拷贝出front，而front()只是引用
-    for (auto& item: http_->timing_wheel_[0])
+    for (auto it = http_->timing_wheel_[0].cbegin(); it!=http_->timing_wheel_[0].cend(); it++)
     {
+        front_conn_weak item = *it;
         if (front_conn_ptr conn = item.lock() )
         {
             // 缓存的对象
-            if (conn->get_stats() == conn_pending) 
+            if (conn->get_stats() == conn_pending)
             {
-                assert( std::find(http_->cached_conns_.begin(), http_->cached_conns_.end(), conn) != 
+                assert( std::find(http_->cached_conns_.begin(), http_->cached_conns_.end(), conn) !=
                         http_->cached_conns_.end() );
                 front_modi.erase(item);
 
@@ -79,8 +68,8 @@ void co_worker::timing_wheel_check(const boost::system::error_code& ec)
             }
 
             if (conn->touch_time_ + boost::posix_time::seconds(
-                                    http_->get_conn_expired_time() - http_->get_conn_check_spare()) 
-                <= boost::posix_time::second_clock::local_time()) 
+                                    http_->get_conn_expired_time() - http_->get_conn_check_spare())
+                <= boost::posix_time::second_clock::local_time())
             {
                 front_modi.erase(item);
 

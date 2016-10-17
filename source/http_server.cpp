@@ -11,7 +11,7 @@ namespace airobot {
 boost::condition_variable_any http_server::conn_notify;
 boost::mutex http_server::conn_notify_mutex;
 
-http_server::http_server(const objects* daemons, 
+http_server::http_server(const objects* daemons,
                          const std::string& address, unsigned short port,
                          const std::string& doc_root, size_t c_cz) :
     io_service_(),
@@ -30,14 +30,6 @@ http_server::http_server(const objects* daemons,
     acceptor_.set_option(ip::tcp::acceptor::reuse_address(true));
     acceptor_.listen();
 
-    // 数据库连接池初始化部分
-    sql_conns_ =  boost::make_shared<aisqlpp::conns_manage>(c_cz+2, "127.0.0.1", "v5kf", "v5kf", "v5_law");
-    string str = "SELECT count(uuid) FROM v5_law_text;";
-    boost::shared_ptr<aisqlpp::connection> ptr = sql_conns_->request_conn(); 
-    size_t cnt = ptr->execute_query_count(str);
-    BOOST_LOG_T(info) << "TOTAL cases in database: " << cnt << endl;
-    sql_conns_->free_conn(ptr);
-
     do_accept();
 }
 
@@ -55,7 +47,7 @@ void http_server::run()
 
     // Create a pool of threads to run all of the io_services.
     std::vector<boost::shared_ptr<boost::thread> > threads_pool;
-    for (std::size_t i = 0; i < concurr_sz_; ++i) 
+    for (std::size_t i = 0; i < concurr_sz_; ++i)
     {
         boost::shared_ptr<boost::thread> c_thread (
             new boost::thread(
@@ -91,7 +83,7 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
     BOOST_LOG_T(debug) << "Client Info: " << p_sock->remote_endpoint().address() << "/" <<
         p_sock->remote_endpoint().port();
 
-    if (current_conns_cnt_ >= max_serve_conns_cnt_) 
+    if (current_conns_cnt_ >= max_serve_conns_cnt_)
     {
         BOOST_LOG_T(error) << boost::format("We only support %llu, current %llu") % max_serve_conns_cnt_
             % current_conns_cnt_ << endl;
@@ -104,7 +96,7 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
         return;
     }
 
-    front_conn_ptr new_c; 
+    front_conn_ptr new_c;
 
     {
         boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
@@ -124,7 +116,7 @@ void http_server::accept_handler(const boost::system::error_code& ec, socket_ptr
         }
 
         front_conns_.left.insert(std::make_pair(new_c, 0ULL));
-        current_conns_cnt_ ++;
+        __sync_fetch_and_add(&current_conns_cnt_, 1);
         timing_wheel_.back().insert(front_conn_weak(new_c));
     }
 
@@ -170,7 +162,7 @@ front_conn_ptr http_server::request_connection(uint64_t session_id)
     auto p = front_conns_.right.find(session_id);
 
     if (p == front_conns_.right.end())
-        return nullptr;
+        return boost::shared_ptr<front_conn>();  // so called nullptr
 
     assert(front_conns_.right.count(session_id) == 1);
     //cout << typeid(p).name() << endl;
@@ -183,17 +175,17 @@ void http_server::show_conns_info(bool verbose)
 {
     size_t total_cnt = 0, err_cnt = 0, work_cnt = 0, pend_cnt = 0;
 //    size_t normal_cnt = 0, zero_cnt = 0, negone_cnt = 0;
-     
+
     boost::lock_guard<boost::mutex> lock(front_conns_mutex_);
 
     front_conn_type::left_map& view = front_conns_.left;
 
     for (auto const_iter = view.begin(); const_iter != view.end(); ++const_iter)
     {
-        if (verbose) 
+        if (verbose)
             cout << boost::format("front_conn[%d], touched:%s, status: ")
-                                  % total_cnt % to_simple_string(const_iter->first->touch_time_); 
-        
+                                  % total_cnt % to_simple_string(const_iter->first->touch_time_);
+
         if (const_iter->first->get_stats() == conn_working)
         { work_cnt++; if (verbose) cout << "working" ; }
         if (const_iter->first->get_stats() == conn_pending)
@@ -227,7 +219,7 @@ bool http_server::set_max_serve_conns_cnt(unsigned long long cnt)
 {
     struct rlimit limit;
 
-    if (getrlimit(RLIMIT_NOFILE, &limit) != 0) 
+    if (getrlimit(RLIMIT_NOFILE, &limit) != 0)
     {
         BOOST_LOG_T(error) << "getrlimit() failed with errno:" << errno;
         return false;
@@ -235,7 +227,7 @@ bool http_server::set_max_serve_conns_cnt(unsigned long long cnt)
 
     if (cnt > limit.rlim_cur)  // 并没有考虑额外占用的句柄数目
     {
-        BOOST_LOG_T(error) << "Reach the soft_limit of nofile:" << limit.rlim_cur; 
+        BOOST_LOG_T(error) << "Reach the soft_limit of nofile:" << limit.rlim_cur;
         return false;
     }
 

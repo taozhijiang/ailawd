@@ -16,7 +16,7 @@ void backtrace_init();
 }
 
 // global variable
-airobot::objects all_daemons = {nullptr, nullptr};
+airobot::objects all_daemons = {0, 0};
 
 int main(int argc, char* argv[])
 {
@@ -25,9 +25,8 @@ int main(int argc, char* argv[])
     const string doc_root = "./";
 
     // ignore sigpipe
-    assert(::signal(SIGPIPE, SIG_IGN) != SIG_ERR);
+    ::signal(SIGPIPE, SIG_IGN);
 
-    airobot::boost_log_init("ailawd_running");
     airobot::backtrace_init();
 
     boost::thread_group threads;
@@ -40,7 +39,7 @@ int main(int argc, char* argv[])
         BOOST_LOG_T(info) << "Server Runing At:" << ip_addr << ":" << srv_port;
         BOOST_LOG_T(info) << "DocumentRoot:" << doc_root;
 
-        all_daemons.http_server_ = new airobot::http_server(&all_daemons, 
+        all_daemons.http_server_ = new airobot::http_server(&all_daemons,
                                                             ip_addr, srv_port, doc_root, concurr_num);
         // 在这里先设置，确保能先于co_worker线程启动前生效
         all_daemons.http_server_->set_max_serve_conns_cnt(100);
@@ -48,18 +47,8 @@ int main(int argc, char* argv[])
 
         all_daemons.co_worker_   = new airobot::co_worker(&all_daemons);
 
-        threads.create_thread(
-            []{
-            cerr<< "Main HTTP ThreadID: " << boost::this_thread::get_id() << endl;
-            all_daemons.http_server_->run();
-        });
-
-        threads.create_thread(
-            []{
-            cerr<< "CO WORKER ThreadID: " << boost::this_thread::get_id() << endl;
-            all_daemons.co_worker_->run();
-        });
-
+        threads.create_thread(boost::bind(&airobot::http_server::run, all_daemons.http_server_));
+        threads.create_thread(boost::bind(&airobot::co_worker::run, all_daemons.co_worker_));
         threads.create_thread(boost::bind(airobot::manage_thread, &all_daemons));
 
         threads.join_all();

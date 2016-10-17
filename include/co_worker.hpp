@@ -20,7 +20,7 @@ public:
 
     void run();
 
-    void signal_handler(const boost::system::error_code& error, 
+    void signal_handler(const boost::system::error_code& error,
                         int signal_number);
 
     void timed_cancel_socket(const boost::system::error_code& ec,
@@ -33,7 +33,6 @@ public:
 
 private:
     io_service io_service_;
-    signal_set signal_;
     boost::asio::deadline_timer* timing_wheel_timer_;
 
     const objects* daemons_;

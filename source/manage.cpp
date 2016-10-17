@@ -8,17 +8,6 @@ using namespace boost::gregorian;
 
 #include "http_server.hpp"
 
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/sinks/text_file_backend.hpp>
-#include <boost/log/utility/setup/file.hpp>
-
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/attributes/timer.hpp>
-#include <boost/log/attributes/named_scope.hpp>
-#include <boost/log/support/date_time.hpp>
-
 #include <execinfo.h>
 
 /**
@@ -66,7 +55,7 @@ void backtrace_info(int sig, siginfo_t *info, void *f)
     ::kill(getpid(), sig);
     ::abort();
 
-#undef BT_SIZE    
+#undef BT_SIZE
 }
 
 void backtrace_init()
@@ -83,42 +72,6 @@ void backtrace_init()
     return;
 }
 
-namespace blog_sink = boost::log::sinks;
-namespace blog_expr = boost::log::expressions;
-namespace blog_keyw = boost::log::keywords;
-namespace blog_attr = boost::log::attributes;
-
-
-void boost_log_init(const string filename_prefix)
-{
-    boost::log::add_common_attributes();
-    //boost::log::core::get()->add_global_attribute("Scope",  blog_attr::named_scope());
-    boost::log::core::get()->add_global_attribute("Uptime", blog_attr::timer());
-
-    boost::log::add_file_log(
-        blog_keyw::file_name = filename_prefix+"_%N.log",
-        blog_keyw::time_based_rotation = 
-                blog_sink::file::rotation_at_time_point(0, 0, 0),
-        blog_keyw::open_mode = std::ios_base::app,
-        blog_keyw::format = blog_expr::stream
-           // << std::setw(7) << std::setfill(' ') << blog_expr::attr< unsigned int >("LineID") << std::setfill(' ') << " | "
-            << "["   << blog_expr::format_date_time< boost::posix_time::ptime >("TimeStamp", "%Y-%m-%d, %H:%M:%S.%f")
-            << "] [" << blog_expr::format_date_time< blog_attr::timer::value_type >("Uptime", "%O:%M:%S")
-           // << "] [" << blog_expr::format_named_scope("Scope", blog_keyw::format = "%n (%F:%l)")
-            << "] <"  << boost::log::trivial::severity << "> "
-            << blog_expr::message,
-        blog_keyw::auto_flush = true
-        );
-
-    // trace debug info warning error fatal
-    boost::log::core::get()->set_filter (
-        boost::log::trivial::severity >= boost::log::trivial::trace);
-
-    BOOST_LOG_T(info) << "BOOST LOG V2 Initlized OK!";
-
-    return;
-}
-
 extern objects all_daemons;
 
 void manage_thread(const objects* daemons)
@@ -129,11 +82,11 @@ void manage_thread(const objects* daemons)
 
     for (;;)
     {
-        boost::unique_lock<boost::mutex> notify_lock(p_srv->conn_notify_mutex); 
+        boost::unique_lock<boost::mutex> notify_lock(p_srv->conn_notify_mutex);
         if(p_srv->conn_notify.timed_wait(notify_lock, boost::posix_time::seconds(45)))
         {
             assert(notify_lock.owns_lock());
-            if(p_srv->pending_to_remove_.empty())   
+            if(p_srv->pending_to_remove_.empty())
                 continue;
 
             // 遍历，剔除失败的连接
@@ -150,8 +103,9 @@ void manage_thread(const objects* daemons)
             // pending_to_remove可能在conn_stat以及co_worker timing
             // 两个地方同时被登记删除
             // 只有在最后一次删除的时候，才能进行洗洗白操作
-            for (auto &item: p_srv->pending_to_remove_) 
+            for (auto it=p_srv->pending_to_remove_.cbegin(); it!=p_srv->pending_to_remove_.cend(); it++)
             {
+                front_conn_ptr item = *it;
                 if(view.find(item) != view.end())
                 {
                     // view, pending_to_remove_ 两份
@@ -164,16 +118,14 @@ void manage_thread(const objects* daemons)
                     }
 
                     view.erase(item);
-                    p_srv->current_conns_cnt_ --;
+                    __sync_fetch_and_sub(&p_srv->current_conns_cnt_, 1);
 
                     // 无限制缓存连接数没有意义
-#pragma GCC diagnostic warning "-Wconversion"
                     if (p_srv->cached_conns_.size() < static_cast<size_t>(p_srv->max_serve_conns_cnt_ * 0.3) )
                     {
                         item->conn_wash_white();
                         p_srv->cached_conns_.push_back(item);
                     }
-#pragma GCC diagnostic error "-Wconversion"
                 }
             }
 
