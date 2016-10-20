@@ -10,9 +10,12 @@ PACKAGE_VERSION = 1.0
 SHELL = /bin/bash
 VERSION = 1.0
 SRC_DIRS = ./source
-EXTRAFLAGS = -lboost_system -lboost_thread -lboost_date_time -lboost_regex 
-EXTRAFLAGS += -I./include
-EXTRAFLAGS +=  -Wall -Wextra -Werror -Wno-unused-parameter -Wold-style-cast -Woverloaded-virtual -Wpointer-arith -Wshadow -Wwrite-strings -march=native
+EXTRAFLAGS =  -I/home/user/Dropbox/ReadTheCode/boost/installdir/include -L/home/user/Dropbox/ReadTheCode/boost/installdir/lib
+EXTRAFLAGS += -DBOOST_LOG_DYN_LINK 
+EXTRAFLAGS += -lboost_system -lboost_thread -lboost_date_time -lboost_regex -lboost_log -lboost_log_setup 
+EXTRAFLAGS += -I./include $(shell mysql_config --cflags --libs)
+EXTRAFLAGS += -lhiredis
+EXTRAFLAGS += -Wall -Wextra -march=native
 
 OBJDIR = ./obj
 

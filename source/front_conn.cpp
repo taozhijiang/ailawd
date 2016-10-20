@@ -11,7 +11,14 @@ using namespace boost::gregorian;
 #include <boost/thread.hpp>
 #include <boost/algorithm/string.hpp>
 
+#include "redis.hpp"
+
 namespace airobot {
+
+// RedisClient singleton
+RedisClient* instance_ = NULL;
+boost::mutex RedisClient::redis_lock_; //多线程访问安全
+redisContext* RedisClient::context_;
 
 namespace http_opts = http_proto::header_options;
 namespace http_stat = http_proto::status;
