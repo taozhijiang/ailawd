@@ -8,6 +8,17 @@ using namespace boost::gregorian;
 
 #include "http_server.hpp"
 
+#include <boost/log/core.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/sinks/text_file_backend.hpp>
+#include <boost/log/utility/setup/file.hpp>
+
+#include <boost/log/utility/setup/common_attributes.hpp>
+#include <boost/log/attributes/timer.hpp>
+#include <boost/log/attributes/named_scope.hpp>
+#include <boost/log/support/date_time.hpp>
+
 #include <execinfo.h>
 
 /**
@@ -72,6 +83,42 @@ void backtrace_init()
     return;
 }
 
+namespace blog_sink = boost::log::sinks;
+namespace blog_expr = boost::log::expressions;
+namespace blog_keyw = boost::log::keywords;
+namespace blog_attr = boost::log::attributes;
+
+void boost_log_init(const string filename_prefix)
+{
+    boost::log::add_common_attributes();
+    //boost::log::core::get()->add_global_attribute("Scope",  blog_attr::named_scope());
+    boost::log::core::get()->add_global_attribute("Uptime", blog_attr::timer());
+
+    boost::log::add_file_log(
+        blog_keyw::file_name = filename_prefix+"_%N.log",
+        blog_keyw::time_based_rotation =
+                blog_sink::file::rotation_at_time_point(0, 0, 0),
+        blog_keyw::open_mode = std::ios_base::app,
+        blog_keyw::format = blog_expr::stream
+           // << std::setw(7) << std::setfill(' ') << blog_expr::attr< unsigned int >("LineID") << std::setfill(' ') << " | "
+            << "["   << blog_expr::format_date_time< boost::posix_time::ptime >("TimeStamp", "%Y-%m-%d, %H:%M:%S.%f")
+            << "] [" << blog_expr::format_date_time< blog_attr::timer::value_type >("Uptime", "%O:%M:%S")
+           // << "] [" << blog_expr::format_named_scope("Scope", blog_keyw::format = "%n (%F:%l)")
+            << "] <"  << boost::log::trivial::severity << "> "
+            << blog_expr::message,
+        blog_keyw::auto_flush = true
+        );
+
+    // trace debug info warning error fatal
+    boost::log::core::get()->set_filter (
+        boost::log::trivial::severity >= boost::log::trivial::trace);
+
+    BOOST_LOG_T(info) << "BOOST LOG V2 Initlized OK!";
+
+    return;
+}
+
+
 extern objects all_daemons;
 
 void manage_thread(const objects* daemons)
@@ -119,7 +166,7 @@ void manage_thread(const objects* daemons)
                     __sync_fetch_and_sub(&p_srv->current_conns_cnt_, 1);
 
                     // 无限制缓存连接数没有意义
-                    if (p_srv->cached_conns_.size() < static_cast<size_t>(p_srv->max_serve_conns_cnt_ * 0.3) )
+                    if (p_srv->cached_conns_.size() < (static_cast<double>(p_srv->max_serve_conns_cnt_) * 0.3) )
                     {
                         item->conn_wash_white();
                         p_srv->cached_conns_.push_back(item);
@@ -138,7 +185,7 @@ void manage_thread(const objects* daemons)
         //睡眠了30s，进行检查
 
 
-        cout << "<<<<<" << to_simple_string(second_clock::local_time()) << ">>>>>" << endl; 
+        cout << "<<<<<" << to_simple_string(second_clock::local_time()) << ">>>>>" << endl;
         p_srv->show_conns_info(false);
         cout << "====================" << endl;
     }

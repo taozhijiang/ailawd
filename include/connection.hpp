@@ -47,7 +47,7 @@ public:
 
     void sock_shutdown(ip::tcp::socket::shutdown_type s_type) { 
         boost::system::error_code ignore_ec;
-        p_sock_->shutdown(s_type, ignore_ec); 
+        p_sock_->shutdown(s_type, ignore_ec);
     }
 
 protected:

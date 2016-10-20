@@ -20,13 +20,18 @@ using namespace boost::asio;
 #include <boost/weak_ptr.hpp>
 
 #include <boost/bind.hpp>
+#include <boost/log/trivial.hpp>
 
 namespace airobot {
 
 typedef boost::shared_ptr<ip::tcp::socket> socket_ptr;
 
 extern char *basename(char *path);
+#if 0
 #define BOOST_LOG_T(x) std::cerr<<std::endl<<#x<<::basename(__FILE__)<<":"<<__LINE__<<"[@"<<__func__<<"]"<<" "
+#else
+#define BOOST_LOG_T(x) BOOST_LOG_TRIVIAL(x)<<::basename(__FILE__)<<":"<<__LINE__<<"[@"<<__func__<<"]"<<" "
+#endif
 
 class http_server;
 class co_worker;

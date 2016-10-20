@@ -26,6 +26,7 @@ int main(int argc, char* argv[])
 
     // ignore sigpipe
     ::signal(SIGPIPE, SIG_IGN);
+    airobot::boost_log_init("airobot_running");
 
     airobot::backtrace_init();
 
