@@ -138,7 +138,7 @@ void manage_thread(const objects* daemons)
         //睡眠了30s，进行检查
 
 
-        cout << "<<<<<" << to_simple_string(second_clock::universal_time()) << ">>>>>" <<endl;
+        cout << "<<<<<" << to_simple_string(second_clock::local_time()) << ">>>>>" << endl; 
         p_srv->show_conns_info(false);
         cout << "====================" << endl;
     }

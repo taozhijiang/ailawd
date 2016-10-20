@@ -10,7 +10,7 @@ PACKAGE_VERSION = 1.0
 SHELL = /bin/bash
 VERSION = 1.0
 SRC_DIRS = ./source
-EXTRAFLAGS = -lboost_system -lboost_thread-mt -lboost_date_time -lboost_regex 
+EXTRAFLAGS = -lboost_system -lboost_thread -lboost_date_time -lboost_regex 
 EXTRAFLAGS += -I./include
 EXTRAFLAGS +=  -Wall -Wextra -Werror -Wno-unused-parameter -Wold-style-cast -Woverloaded-virtual -Wpointer-arith -Wshadow -Wwrite-strings -march=native
 

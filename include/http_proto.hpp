@@ -4,7 +4,7 @@
 namespace airobot {
 
     namespace win_server {
-        static const string ip = "192.168.1.154";
+        static const string ip = "192.168.1.1";
         static const unsigned short port = 5566;
     }
 
