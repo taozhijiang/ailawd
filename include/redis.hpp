@@ -76,10 +76,19 @@ public:
         return *redis_instance_;
     }
 
+    // general support longlong, string
+    template <typename K, typename T>
+    bool setValue(const K& key, const T& val);
+    template <typename K, typename T>
+    bool getValue(const K& key, T& val);
+
+    /**
+     * binary compatible protocol
+     */
     template <typename T>
-    bool setValue(const std::string& key, const T& val);
+    bool setValue(unsigned char* key, size_t key_len, const T& val);
     template <typename T>
-    bool getValue(const std::string& key, T& val);
+    bool getValue(unsigned char* key, size_t key_len, T& val);
 
 private:
     static void createInstance()
@@ -189,6 +198,62 @@ bool RedisClient::getValue(const std::string& key, std::string& val)
     return true;
 }
 
+
+template <>
+bool RedisClient::setValue(unsigned char* key, size_t key_len, const std::string& val)
+{
+    boost::lock_guard<boost::mutex> lock(redis_lock_);
+    redisReply* reply = static_cast<redisReply *> (
+                redisCommand(context_, "SET %b %s", key, key_len, val.c_str()) );
+
+    // 断开重连
+    if (!reply)
+    {
+        BOOST_LOG_T(error) << "setValue with error:" << context_->errstr;
+        initContext();
+        return false;
+    }
+
+    if (reply->type != REDIS_REPLY_STATUS && strcasecmp(reply->str, "OK"))
+    {
+        BOOST_LOG_T(error) << "Redis reply error with:" << reply->type << ": " << reply->str;
+        freeReplyObject(reply);
+        return false;
+    }
+
+    freeReplyObject(reply);
+    return true;
+}
+
+template <>
+bool RedisClient::getValue(unsigned char* key, size_t key_len, std::string& val)
+{
+    boost::lock_guard<boost::mutex> lock(redis_lock_);
+    redisReply* reply = static_cast<redisReply *> (
+                redisCommand(context_, "GET %b", key, key_len) );
+
+    // 断开重连
+    if (!reply)
+    {
+        BOOST_LOG_T(error) << "setValue with error:" << context_->errstr;
+        initContext();
+        return false;
+    }
+
+    if (reply->type != REDIS_REPLY_STRING)
+    {
+        if (reply->type != REDIS_REPLY_NIL )
+            BOOST_LOG_T(error) << "Redis reply error with:" << reply->type;
+
+        freeReplyObject(reply);
+        return false;
+    }
+
+    val = std::string(reply->str);
+
+    freeReplyObject(reply);
+    return true;
+}
 
 }
 

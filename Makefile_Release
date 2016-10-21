@@ -13,7 +13,7 @@ SRC_DIRS = ./source
 EXTRAFLAGS = -I/home/taozj/root/include/ -L/home/taozj/root/lib/ -I/home/taozj/root/rapidjson/include
 EXTRAFLAGS += -DBOOST_LOG_DYN_LINK -lboost_system -lboost_thread -lboost_date_time -lboost_regex -lboost_log -lboost_log_setup 
 EXTRAFLAGS += -I./include $(shell mysql_config --cflags --libs)
-EXTRAFLAGS += -lhiredis
+EXTRAFLAGS += -lhiredis -lssl
 EXTRAFLAGS += -Wall -Wconversion -Woverloaded-virtual -Wpointer-arith -Wshadow -Wwrite-strings -march=native
 
 OBJDIR = ./obj

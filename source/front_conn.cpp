@@ -13,6 +13,8 @@ using namespace boost::gregorian;
 
 #include <rapidjson/document.h>
 
+#include <openssl/md5.h>
+
 #include "redis.hpp"
 
 namespace airobot {
@@ -387,10 +389,11 @@ bool front_conn::analyse_handler()
     std::string u_text;
     size_t read_len = 0;
 
+    // rapidjson GetString() 返回的是const char*
     if (doc.HasMember("uuid") && doc["uuid"].IsString())
     {
         RedisClient &redis = RedisClient::getInstance();
-        if (redis.getValue(doc["uuid"].GetString(), u_text))
+        if (redis.getValue(std::string(doc["uuid"].GetString()), u_text))
         {
             BOOST_LOG_T(info) << "Cache hit for: " << doc["uuid"].GetString();
             fill_for_http(u_text, http_proto::status::ok);
@@ -401,17 +404,31 @@ bool front_conn::analyse_handler()
             return false;
 
         u_text.assign(read_buff.data(), read_len);
-        if( redis.setValue(doc["uuid"].GetString(), u_text) )
-            BOOST_LOG_T(info) << "Add redis cache for: " << doc["uuid"].GetString() << "OK!";
+        if( redis.setValue(std::string(doc["uuid"].GetString()), u_text) )
+            BOOST_LOG_T(info) << "Add redis cache for: " << doc["uuid"].GetString() << " OK!";
 
         fill_for_http(u_text, http_proto::status::ok);
     }
     else if (doc.HasMember("content") && doc["content"].IsString())
     {
+        unsigned char md5_sum[MD5_DIGEST_LENGTH];
+        MD5((const unsigned char*)doc["content"].GetString(), strlen(doc["content"].GetString()), md5_sum);
+
+        RedisClient &redis = RedisClient::getInstance();
+        if (redis.getValue(md5_sum, MD5_DIGEST_LENGTH, u_text))
+        {
+            BOOST_LOG_T(info) << "Cache hit for content query!";
+            fill_for_http(u_text, http_proto::status::ok);
+            return true;
+        }
+
         if (!redirect_to_win(body, read_buff, read_len))
             return false;
 
         u_text.assign(read_buff.data(), read_len);
+        if( redis.setValue(md5_sum, MD5_DIGEST_LENGTH, u_text) )
+            BOOST_LOG_T(info) << "Add redis cache for content query OK!";
+
         fill_for_http(u_text, http_proto::status::ok);
     }
     else
