@@ -11,14 +11,15 @@ using namespace boost::gregorian;
 #include <boost/thread.hpp>
 #include <boost/algorithm/string.hpp>
 
+#include <rapidjson/document.h>
+
 #include "redis.hpp"
 
 namespace airobot {
 
 // RedisClient singleton
-RedisClient* instance_ = NULL;
+RedisClient* RedisClient::redis_instance_ = NULL;
 boost::mutex RedisClient::redis_lock_; //多线程访问安全
-redisContext* RedisClient::context_;
 
 namespace http_opts = http_proto::header_options;
 namespace http_stat = http_proto::status;
@@ -279,7 +280,7 @@ error_return:
 
 write_return:
     do_write();
-    
+
     // 同上
     start();
 
@@ -363,16 +364,69 @@ void front_conn::conn_reset_network(boost::shared_ptr<ip::tcp::socket> p_sock)
 // 添加各种URI的handler
 bool front_conn::analyse_handler()
 {
+    static const std::string access_id_code = "11488058246";
+
     string body = string(p_buffer_->data(), r_size_);
     body = string(body.c_str());
 
-    if (body.find("access_id") == std::string::npos ||
-        body.find("11488058246") == std::string::npos )
+    rapidjson::Document doc;
+    if (doc.Parse(body.c_str()).HasParseError())
+    {
+        BOOST_LOG_T(info) << "Rapid json parse operation error!";
+        return false;
+    }
+
+    if (!doc.HasMember("access_id") || !doc["access_id"].IsString() ||
+         access_id_code != doc["access_id"].GetString())
     {
         BOOST_LOG_T(error) << "Wrong access_id detected! " << body;
         return false;
     }
 
+    std::vector<char> read_buff(32*1024, 0);
+    std::string u_text;
+    size_t read_len = 0;
+
+    if (doc.HasMember("uuid") && doc["uuid"].IsString())
+    {
+        RedisClient &redis = RedisClient::getInstance();
+        if (redis.getValue(doc["uuid"].GetString(), u_text))
+        {
+            BOOST_LOG_T(info) << "Cache hit for: " << doc["uuid"].GetString();
+            fill_for_http(u_text, http_proto::status::ok);
+            return true;
+        }
+
+        if (!redirect_to_win(body, read_buff, read_len))
+            return false;
+
+        u_text.assign(read_buff.data(), read_len);
+        if( redis.setValue(doc["uuid"].GetString(), u_text) )
+            BOOST_LOG_T(info) << "Add redis cache for: " << doc["uuid"].GetString() << "OK!";
+
+        fill_for_http(u_text, http_proto::status::ok);
+    }
+    else if (doc.HasMember("content") && doc["content"].IsString())
+    {
+        if (!redirect_to_win(body, read_buff, read_len))
+            return false;
+
+        u_text.assign(read_buff.data(), read_len);
+        fill_for_http(u_text, http_proto::status::ok);
+    }
+    else
+    {
+        BOOST_LOG_T(error) << "Unknow operation! " << body;
+        return false;
+    }
+
+    return true;
+}
+
+
+bool front_conn::redirect_to_win(const std::string& re_body,
+                                 std::vector<char>& response, size_t& len)
+{
     // 和后端服务器同步连接和同步请求
     // 但是阻塞读取没有timed_out选项。。。
     BOOST_LOG_T(info) << "Request to host:" << win_server::ip << ":" << win_server::port;
@@ -402,10 +456,9 @@ bool front_conn::analyse_handler()
     //string msg = json_parsed["content"].string_value();
     //sock.write_some(buffer(msg));
     // 原样传递数据
-    sock.write_some(buffer(body));
+    sock.write_some(buffer(re_body));
 
-    std::vector<char> read_buff(32*1024, 0);
-    size_t read_len = sync_read_from(sock, read_buff, error);
+    size_t read_len = sync_read_from(sock, response, error);
 
     //size_t read_len = sync_timed_read_from(p_worker,
     //                                       sock, read_buff, 7000, error);
@@ -417,12 +470,8 @@ bool front_conn::analyse_handler()
     }
 
     BOOST_LOG_T(info) << "Transform answer from server with size: " << read_len ;
-    string ret_str(read_buff.data(), read_len);
-    ret_str = string(ret_str.c_str());
-    fill_for_http(ret_str, http_proto::status::ok);
-
+    len = read_len;
     return true;
 }
-
 
 }

@@ -57,6 +57,7 @@ private:
     // do_write发送，否则内容未定义，手动覆盖生成错误回复信息
     bool ailaw_handler();
     bool analyse_handler();
+    bool redirect_to_win(const std::string& re_body, std::vector<char>& response, size_t& len);
     bool item_handler();
 
     // 用于读取HTTP的头部使用
